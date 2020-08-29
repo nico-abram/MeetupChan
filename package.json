@@ -1,24 +1,32 @@
 {
-  "name": "meetup-chan",
-  "version": "0.0.1",
-  "description": "Argnime Meetup Bot",
-  "main": "index.js",
-  "author": "Nicolas Abram Lujan",
-  "license": "MIT",
-  "dependencies": {
-    "discord.js": "^12.3.1",
-    "dotenv": "^8.2.0",
-    "mongodb": "^3.6.0",
-    "mongoose": "^5.10.0"
-  },
-  "scripts": {
-    "start": "node index.js",
-    "lint": "eslint \"**/*.js\" --ignore-pattern node_modules/",
-    "format": "prettier --write \"**/*.js\"",
-    "format-check": "prettier --check \"**/*.js\""
-  },
-  "devDependencies": {
-    "eslint": "^7.7.0",
-    "prettier": "^2.1.1"
-  }
+	"name": "meetup-chan",
+	"version": "0.0.1",
+	"description": "Argnime Meetup Bot",
+	"main": "index.js",
+	"author": "Nicolas Abram Lujan",
+	"license": "MIT",
+	"dependencies": {
+		"discord.js": "^12.3.1",
+		"dotenv": "^8.2.0",
+		"mongodb": "^3.6.0",
+		"mongoose": "^5.10.0",
+		"pm2": "^4.4.1"
+	},
+	"watch": {
+		"dev": "src/*.js"
+	},
+	"scripts": {
+		"dev": "node src/index.js",
+		"prod": "pm2 start src/index.js --name meetupchan",
+		"prod-stop": "pm2 delete meetupchan",
+		"watch": "npm-watch",
+		"lint": "eslint \"**/*.js\" --ignore-pattern node_modules/",
+		"format": "prettier --write \"**/*.js\"",
+		"format-check": "prettier --check \"**/*.js\""
+	},
+	"devDependencies": {
+		"npm-watch": "^0.7.0",
+		"eslint": "^7.7.0",
+		"prettier": "^2.1.1"
+	}
 }

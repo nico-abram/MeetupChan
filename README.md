@@ -22,7 +22,7 @@ First install dependencies with
 Then run
 
 ```sh
-    yarn start
+    yarn dev
 ```
 
 Running the bot requires a mongo database and a discord bot account. The access configuration for these is in environment variables, or a .env file.
@@ -34,6 +34,28 @@ M_URI=mongodb+srv://user:password@domain.com/path
 
 For the mongo database, in my dev environment I'm using the free tier from [atlas](https://cloud.mongodb.com)
 For the discord bot account, create an application in the [discord developer portal](https://discord.com/developers) and make a new bot under it
+
+You can run
+
+```sh
+    yarn watch dev
+```
+
+To automatically restart the bot upon changing code
+
+To run using [pm2](https://pm2.keymetrics.io/), use
+
+```sh
+    yarn prod
+```
+
+And to stop
+
+```sh
+    yarn prod-stop
+```
+
+To avoid the yarn/npm process, if you wish, you can run the bash scripts in /scripts instead
 
 ## Ideas that won't make it into an MVP
 
@@ -57,7 +79,7 @@ Todos:
 - Voting
 - Anilist/Mal integration
 - Validate moongose schema
-- Setup CI (Testing, format checking, lint checking, deployment)
+- Setup CI (Testing, format checking, lint checking, deployment). Github actions?
 - Tests?
 - Hosting
 - Cleanup code a bit
