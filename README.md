@@ -32,7 +32,7 @@ D_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI
 M_URI=mongodb+srv://user:password@domain.com/path
 ```
 
-For the mongo database, in my dev environment I'm using the free tier from [atlas](cloud.mongodb.com)
+For the mongo database, in my dev environment I'm using the free tier from [atlas](https://cloud.mongodb.com)
 For the discord bot account, create an application in the [discord developer portal](https://discord.com/developers) and make a new bot under it
 
 ## Ideas that won't make it into an MVP
