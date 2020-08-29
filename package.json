@@ -12,6 +12,13 @@
     "mongoose": "^5.10.0"
   },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "lint": "eslint \"**/*.js\" --ignore-pattern node_modules/",
+    "format": "prettier --write \"**/*.js\"",
+    "format-check": "prettier --check \"**/*.js\""
+  },
+  "devDependencies": {
+    "eslint": "^7.7.0",
+    "prettier": "^2.1.1"
   }
 }

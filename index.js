@@ -3,8 +3,9 @@ require("dotenv").config();
 const Discord = require("discord.js");
 
 const mongoose = require("mongoose");
-const { MongoNetworkError } = require("mongodb");
 var Schema = mongoose.Schema;
+
+const DEFAULT_PREFIX = "|";
 
 const AnimeEntryObject = new Schema({
   votes: [{ user_id: String, score: Number }],
@@ -29,6 +30,26 @@ const Server = mongoose.model(
   })
 );
 
+async function is_mod(member, server) {
+  if (server == null) {
+    server = await Server.find({ serverId: member.guild.id }).exec();
+  }
+  return (
+    member.hasPermission("ADMINISTRATOR") ||
+    member.roles.cache.find((role) => role.id === server.config.mod_role_id)
+  );
+}
+
+async function ensure_guild_initialization(guild) {
+  const server = await Server.find({ serverId: guild.id }).exec();
+  if (server[0] == null) {
+    await Server.create({
+      server_id: guild.id,
+      config: { prefix: DEFAULT_PREFIX, mod_role_id: null },
+      anime_queue: [],
+    });
+  }
+}
 const client = new Discord.Client();
 async function run() {
   try {
@@ -40,26 +61,6 @@ async function run() {
       });
     console.log("Succesfully connected to mongo database!");
 
-    async function is_mod(member, server) {
-      if (server == null) {
-        server = await Server.find({ serverId: member.guild.id }).exec();
-      }
-      return (
-        member.hasPermission("ADMINISTRATOR") ||
-        member.roles.cache.find((role) => role.id === server.config.mod_role_id)
-      );
-    }
-
-    async function ensure_guild_initialization(guild) {
-      const server = await Server.find({ serverId: guild.id }).exec();
-      if (server[0] == null) {
-        await Server.create({
-          server_id: guild.id,
-          config: { prefix: "|", mod_role_id: null },
-          anime_queue: [],
-        });
-      }
-    }
     client.on("ready", async () => {
       console.log(`Logged in as ${client.user.tag}!`);
 
@@ -69,17 +70,28 @@ async function run() {
       await ensure_guild_initialization(guild);
     });
 
-    const commands = client.on("message", async (msg) => {
-      const [server] = await Server.find({ serverId: msg.guild.id }).exec();
-      const prefix = server.config.prefix;
-      if (!msg.content.startsWith(prefix) || msg.author.bot) return;
-
-      const args = msg.content.slice(prefix.length).trim().split(/ +/);
-      const command = args.shift().toLowerCase(); // lowercase y shift() para sacar el prefix
-
-      if (command === "mal") {
-        msg.reply("Pong!");
-      } else if (command === "propose") {
+    const commands = {
+      setprefix: async function (server, msg, args) {
+        if (await is_mod(msg.member, server)) {
+          const new_prefix = args[0];
+          if (new_prefix != null && new_prefix.length == 1) {
+            server.config.prefix = new_prefix;
+            msg.reply(`Prefix set to ${new_prefix}`);
+            server.save();
+          } else {
+            msg.reply(
+              `${new_prefix} is not a valid prefix! It must be a single character`
+            );
+          }
+        } else {
+          msg.reply("You're not a mod!");
+        }
+      },
+      mal: async function (server, msg, args) {
+        msg.reply("TODO");
+        //TODO
+      },
+      propose: async function (server, msg, args) {
         const title = args[0];
         if (title == null || title.length == 0) {
           msg.reply(`Invalid anime title`);
@@ -99,9 +111,8 @@ async function run() {
           //TODO: What do if member left server?
           msg.reply(
             `${title} has already been proposed by ${
-              member_who_already_proposed.nickname
-                ? member_who_already_proposed.nickname
-                : member_who_already_proposed.user.username
+              member_who_already_proposed.nickname ||
+              member_who_already_proposed.user.username
             }`
           );
         }
@@ -125,21 +136,19 @@ async function run() {
         server.save();
 
         msg.reply(`Your proposal is now set to ${title}`);
-      } else if (command === "setprefix") {
-        if (await is_mod(msg.member, server)) {
-          const new_prefix = args[0];
-          if (new_prefix != null && new_prefix.length == 1) {
-            server.config.prefix = new_prefix;
-            msg.reply(`Prefix set to ${new_prefix}`);
-            server.save();
-          } else {
-            msg.reply(
-              `${new_prefix} is not a valid prefix! It must be a single character`
-            );
-          }
-        } else {
-          msg.reply("You're not a mod!");
-        }
+      },
+    };
+    client.on("message", async (msg) => {
+      const [server] = await Server.find({ serverId: msg.guild.id }).exec();
+      const prefix = server.config.prefix;
+      if (!msg.content.startsWith(prefix) || msg.author.bot) return;
+
+      const args = msg.content.slice(prefix.length).trim().split(/ +/);
+      const command = args.shift().toLowerCase(); // lowercase y shift() para sacar el prefix
+
+      const command_fn = commands[command];
+      if (command_fn != null) {
+        command_fn(server, msg, args);
       }
     });
 
