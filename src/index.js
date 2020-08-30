@@ -208,7 +208,7 @@ const commands = {
 			new_removal_strike_count_str.length == 0
 		) {
 			msg.reply(
-				`Removal strike count is set to ${server.removal_strike_count}`
+				`Removal strike count is set to ${server.config.removal_strike_count}`
 			);
 			return;
 		}
@@ -216,31 +216,31 @@ const commands = {
 		const new_removal_strike_count = parseInt(new_removal_strike_count_str, 10);
 		if (isNaN(new_removal_strike_count)) {
 			msg.reply(
-				`${new_removal_strike_count_str} is not a valid number! Removal strike count remains unchanged (${server.removal_strike_count})`
+				`${new_removal_strike_count_str} is not a valid number! Removal strike count remains unchanged (${server.config.removal_strike_count})`
 			);
 			return;
 		}
 
-		server.removal_strike_count = new_removal_strike_count;
+		server.config.removal_strike_count = new_removal_strike_count;
 		msg.reply(`Server removal strike count set to ${new_removal_strike_count}`);
 		server.save();
 	}),
 	rollbaseweight: modcommand_wrapper(async function (server, msg, args) {
 		const new_base_weight_str = args[0];
 		if (new_base_weight_str == null || new_base_weight_str.length == 0) {
-			msg.reply(`Base roll weight is set to ${server.base_roll_weight}`);
+			msg.reply(`Base roll weight is set to ${server.config.base_roll_weight}`);
 			return;
 		}
 
 		const new_base_roll_weight = parseInt(new_base_weight_str, 10);
 		if (isNaN(new_base_roll_weight)) {
 			msg.reply(
-				`${new_base_weight_str} is not a valid number! Base roll weight remains unchanged (${server.base_roll_weight})`
+				`${new_base_weight_str} is not a valid number! Base roll weight remains unchanged (${server.config.base_roll_weight})`
 			);
 			return;
 		}
 
-		server.base_roll_weight = new_base_roll_weight;
+		server.config.base_roll_weight = new_base_roll_weight;
 		msg.reply(`Server base roll weight set to ${new_base_roll_weight}`);
 		server.save();
 	}),
