@@ -22,8 +22,9 @@ module.exports.Server = mongoose.model(
 		config: {
 			prefix: String,
 			mod_role_ids: [String],
-			base_roll_weight: Number,
 			voice_channel_ids: [String],
+			base_roll_weight: Number,
+			removal_strike_count: Number,
 		},
 		anime_queue: [module.exports.AnimeEntryObject],
 	})

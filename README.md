@@ -48,11 +48,17 @@ There is a karma system in place to add luck to proposals over time (So older pr
 
 `|listvoicechannels`
 
-- Set/Get base roll weight (Mod only)
+- Set/Get base roll weight (Mod only) (Defaults to 1)
 
 `|rollbaseweight`
 
 `|rollbaseweight 5`
+
+- Set/Get proposal removal strike count (Mod only) (Defaults to 3)
+
+`|removalstrikecount`
+
+`|removalstrikecount 5`
 
 - Change prefix (Mod only)
 

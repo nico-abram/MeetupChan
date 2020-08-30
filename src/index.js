@@ -29,20 +29,33 @@ const {
 
 const DEFAULT_PREFIX = '|';
 const DEFAULT_BASE_ROLL_WEIGHT = 1;
+const DEFAULT_REMOVAL_STRIKE_COUNT = 3;
 
 async function ensure_guild_initialization(guild) {
-	const server = await Server.find({ serverId: guild.id }).exec();
-	if (server[0] == null) {
+	const servers = await Server.find({ serverId: guild.id }).exec();
+	if (servers[0] == null) {
 		await Server.create({
 			server_id: guild.id,
 			config: {
 				prefix: DEFAULT_PREFIX,
 				base_roll_weight: DEFAULT_BASE_ROLL_WEIGHT,
+				removal_strike_count: DEFAULT_REMOVAL_STRIKE_COUNT,
 				mod_role_ids: [],
 				voice_channel_ids: [],
 			},
 			anime_queue: [],
 		});
+	} else {
+		const server = servers[0];
+		if (server.config.base_roll_weight == null)
+			server.config.base_roll_weight = DEFAULT_BASE_ROLL_WEIGHT;
+		if (server.config.voice_channel_ids == null)
+			server.config.voice_channel_ids = [];
+		if (server.config.mod_role_ids == null) server.config.mod_role_ids = [];
+		if (server.config.prefix == null) server.config.prefix = DEFAULT_PREFIX;
+		if (server.config.removal_strike_count == null)
+			server.config.removal_strike_count = DEFAULT_REMOVAL_STRIKE_COUNT;
+		server.save();
 	}
 }
 
@@ -191,6 +204,30 @@ const commands = {
 		let response_msg = 'Meetup Voice Channels: \n' + channels.join('\n');
 		msg.reply(response_msg);
 	}),
+	removalstrikecount: modcommand_wrapper(async function (server, msg, args) {
+		const new_removal_strike_count_str = args[0];
+		if (
+			new_removal_strike_count_str == null ||
+			new_removal_strike_count_str.length == 0
+		) {
+			msg.reply(
+				`Removal strike count is set to ${server.removal_strike_count}`
+			);
+			return;
+		}
+
+		const new_removal_strike_count = parseInt(new_removal_strike_count_str, 10);
+		if (isNaN(new_removal_strike_count)) {
+			msg.reply(
+				`${new_removal_strike_count_str} is not a valid number! Removal strike count remains unchanged (${server.removal_strike_count})`
+			);
+			return;
+		}
+
+		server.removal_strike_count = new_removal_strike_count;
+		msg.reply(`Server removal strike count set to ${new_removal_strike_count}`);
+		server.save();
+	}),
 	rollbaseweight: modcommand_wrapper(async function (server, msg, args) {
 		const new_base_weight_str = args[0];
 		if (new_base_weight_str == null || new_base_weight_str.length == 0) {
@@ -207,7 +244,7 @@ const commands = {
 		}
 
 		server.base_roll_weight = new_base_roll_weight;
-		msg.reply(`Server base roll weight set to ${new_base_weight_str}`);
+		msg.reply(`Server base roll weight set to ${new_base_roll_weight}`);
 		server.save();
 	}),
 	addmodrole: admincommand_wrapper(async function (server, msg, args) {
@@ -278,7 +315,7 @@ const commands = {
 
 		let weights = proposals.map(
 			(proposal) =>
-				server.base_roll_weight +
+				server.config.base_roll_weight +
 				Math.floor(days_since_date(proposal.date_proposed) / 7)
 		);
 
@@ -307,6 +344,23 @@ const commands = {
 			//TODO: Check that we have not already striked this proposal in the last 24 hs
 			//      to prevent it from getting striked multiple times in a single meetup
 			rolled_proposal.strikes += 1;
+			if (rolled_proposal.strikes >= server.config.removal_strike_count) {
+				msg.reply(
+					`Rolled '${rolled_proposal.title}' proposed by ${member_display_name(
+						rolled_member
+					)} who is not present. Proposal was removed for reaching the removal strike count (${
+						server.config.removal_strike_count
+					})`
+				);
+				server.anime_queue.splice(
+					server.anime_queue.findIndex(
+						(proposal) => proposal._id == rolled_proposal._id
+					),
+					1
+				);
+				server.save();
+				return;
+			}
 			msg.reply(
 				`Rolled '${rolled_proposal.title}' proposed by ${member_display_name(
 					rolled_member
