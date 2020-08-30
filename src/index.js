@@ -141,7 +141,7 @@ async function validate_conflicting_anime_entry(msg, server, filter) {
 const client = new Discord.Client();
 
 const commands = {
-	addvoicechannel: admincommand_wrapper(async function (server, msg, args) {
+	addvoicechannel: modcommand_wrapper(async function (server, msg, args) {
 		const voice_channel_name = msg.content.substr(msg.content.indexOf(' ') + 1);
 		if (voice_channel_name == null || voice_channel_name.length == 0) {
 			msg.reply(`Missing voice channel name`);
@@ -161,7 +161,7 @@ const commands = {
 		server.save();
 		msg.reply(`Added '${voice_channel.name}' as a meetup voice channel`);
 	}),
-	removevoicechannel: admincommand_wrapper(async function (server, msg, args) {
+	removevoicechannel: modcommand_wrapper(async function (server, msg, args) {
 		const voice_channel_name = msg.content.substr(msg.content.indexOf(' ') + 1);
 		if (voice_channel_name == null || voice_channel_name.length == 0) {
 			msg.reply(`Missing voice channel name`);
@@ -184,14 +184,14 @@ const commands = {
 		server.save();
 		msg.reply(`'${voice_channel.name}' is no longer a meetup voice channel`);
 	}),
-	listvoicechannels: admincommand_wrapper(async function (server, msg, args) {
+	listvoicechannels: modcommand_wrapper(async function (server, msg, args) {
 		let channels = server.config.voice_channel_ids.map(
 			(voice_channel_id) => msg.guild.channels.resolve(voice_channel_id).name
 		);
 		let response_msg = 'Meetup Voice Channels: \n' + channels.join('\n');
 		msg.reply(response_msg);
 	}),
-	rollbaseweight: admincommand_wrapper(async function (server, msg, args) {
+	rollbaseweight: modcommand_wrapper(async function (server, msg, args) {
 		const new_base_weight_str = args[0];
 		if (new_base_weight_str == null || new_base_weight_str.length == 0) {
 			msg.reply(`Base roll weight is set to ${server.base_roll_weight}`);
