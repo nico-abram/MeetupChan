@@ -21,6 +21,7 @@ There is a karma system in place to add luck to proposals over time (So older pr
 - Propose an anime
 
 `|propose https://anilist.co/anime/110353/DecaDence`
+
 `|propose https://myanimelist.net/anime/634/Koi_Kaze`
 
 - Get your current proposal
@@ -34,18 +35,23 @@ There is a karma system in place to add luck to proposals over time (So older pr
 - Role Management (Admin only)
 
 `|addmodrole role name goes here`
+
 `|removemodrole role name goes here`
+
 `|listmodroles`
 
 - Voice channel Management (Mod only)
 
 `|addvoicechannel voice channel name goes here`
+
 `|removevoicechannel voice channel name goes here`
+
 `|listvoicechannels`
 
 - Set/Get base roll weight (Mod only)
 
 `|rollbaseweight`
+
 `|rollbaseweight 5`
 
 - Change prefix (Mod only)
