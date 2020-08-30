@@ -1,49 +1,29 @@
 require('dotenv').config();
 
 const char_to_emoji = require('./emoji_characters');
+const { weighted_roll, days_since_date, pretty_date } = require('./utils');
+const {
+	search_anilist,
+	get_anilist_media_by_id,
+	get_anilist_media_by_mal_id,
+	proposal_from_anilist_media,
+} = require('./anilist');
+
 const emoji_to_char = Object.entries(char_to_emoji).reduce((ret, entry) => {
 	ret[entry.value] = entry.key;
 	return ret;
 }, {});
 const Discord = require('discord.js');
-const axios = require('axios');
-const mongoose = require('mongoose');
-var Schema = mongoose.Schema;
+const {
+	mongoose,
+	Server,
+	get_user_proposal,
+	get_user_watched_proposals,
+	get_server_proposals,
+} = require('./db.js');
 
 const DEFAULT_PREFIX = '|';
-
-const AnimeEntryObject = new Schema({
-	votes: [{ user_id: String, score: Number }],
-	user_id: String,
-	date_proposed: Date,
-	date_watched: Date, // Null if not watched
-	watched: Boolean,
-	title: String,
-	anilist_id: String,
-	mal_id: String,
-});
-const Server = mongoose.model(
-	'Server',
-	new Schema({
-		server_id: String,
-		//serverName: String,
-		config: {
-			prefix: String,
-			mod_role_id: String,
-		},
-		anime_queue: [AnimeEntryObject],
-	})
-);
-
-async function is_mod(member, server) {
-	if (server == null) {
-		server = await Server.find({ serverId: member.guild.id }).exec();
-	}
-	return (
-		member.hasPermission('ADMINISTRATOR') ||
-		member.roles.cache.find((role) => role.id === server.config.mod_role_id)
-	);
-}
+const BASE_ROLL_WEIGHT = 1;
 
 async function ensure_guild_initialization(guild) {
 	const server = await Server.find({ serverId: guild.id }).exec();
@@ -56,23 +36,17 @@ async function ensure_guild_initialization(guild) {
 	}
 }
 
-function get_user_proposal(server, user_id) {
-	return server.anime_queue.find(
-		(anime_entry) =>
-			anime_entry.watched == false && anime_entry.user_id == user_id
-	);
+function is_admin(member) {
+	return member.hasPermission('ADMINISTRATOR');
 }
 
-function get_user_watched_proposals(server, user_id) {
-	return server.anime_queue.filter(
-		(anime_entry) =>
-			anime_entry.watched == true && anime_entry.user_id == user_id
-	);
-}
-
-function get_server_proposals(server) {
-	return server.anime_queue.filter(
-		(anime_entry) => anime_entry.watched == false
+async function is_mod(member, server) {
+	if (server == null) {
+		server = await Server.find({ serverId: member.guild.id }).exec();
+	}
+	return (
+		is_admin(member) ||
+		member.roles.cache.find((role) => role.id === server.config.mod_role_id)
 	);
 }
 
@@ -84,93 +58,6 @@ function modcommand_wrapper(fn) {
 			msg.reply("You're not a mod!");
 		}
 	};
-}
-
-async function search_anilist(title, page, perPage) {
-	const url = 'https://graphql.anilist.co/';
-	const query = `query ($search: String, $page: Int, $perPage: Int) {
-			Page(page: $page, perPage: $perPage) {
-				pageInfo {
-					total
-					currentPage
-				}
-				media(search: $search, type: ANIME, sort: START_DATE) {
-					id
-					idMal
-					startDate {
-						year
-						month
-						day
-					}
-					title {
-						english(stylised: true)
-						romaji(stylised: true)
-					}
-				}
-			}
-		}
-		`;
-	const res = await axios
-		.post(url, {
-			query,
-			variables: {
-				search: title,
-				page: page || 1,
-				perPage: perPage || 10,
-			},
-		})
-		.catch(console.log);
-	return res.data.data.Page;
-}
-
-function proposal_from_anilist_media(msg, media) {
-	return {
-		votes: [],
-		user_id: msg.author.id,
-		date_proposed: Date.now(),
-		date_watched: null,
-		watched: false,
-		title: media.title.english || media.title.romaji,
-		anilist_id: media.id,
-		mal_id: media.idMal,
-	};
-}
-
-async function get_anilist_media_by_id(anilist_id) {
-	const url = 'https://graphql.anilist.co/';
-	const query = `query ($anilist_id: Int) {
-			Media(id: $anilist_id, type: ANIME) {
-				id
-				idMal
-				startDate {
-					year
-					month
-					day
-				}
-				title {
-					english(stylised: true)
-					romaji(stylised: true)
-				}
-			}
-		}
-		`;
-	const res = await axios
-		.post(url, {
-			query,
-			variables: {
-				anilist_id,
-			},
-		})
-		.catch(console.log);
-	return res.data.data.Media;
-}
-
-async function get_mal_media_by_id(mal_id) {
-	//TODO
-}
-
-function proposal_from_mal_media(msg, mal_media) {
-	//TODO
 }
 
 async function validate_conflicting_anime_entry(msg, server, filter) {
@@ -214,79 +101,26 @@ const commands = {
 
 		const oneDay = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 		const now = Date.now();
-		const days_since = (date) =>
-			Math.round(Math.abs((date - now) / oneDay)) % 7;
 		let weights = proposals.map(
-			(proposal) => 1 + Math.floor(days_since(proposal.date_proposed) / 7)
+			(proposal) =>
+				BASE_ROLL_WEIGHT +
+				Math.floor(days_since_date(proposal.date_proposed) / 7)
 		);
 
-		const total_weight = weights.reduce(
-			(total_weight, weight) => total_weight + weight,
-			0
-		);
-		// We distribute the weights such that something like [1,1,2] is now [1,2,4]
-		let tmp_accumulator = 0;
-		weights = weights.map((el) => {
-			tmp_accumulator = el + tmp_accumulator;
-			return tmp_accumulator;
-		});
-
-		var rand = Math.random() * total_weight;
-		var rolled_proposal =
-			proposals[weights.findIndex((weight) => weight > rand)];
+		var rolled_proposal = weighted_roll(proposals, weights);
 
 		msg.reply(rolled_proposal.title);
 		rolled_proposal.watched = true;
 		rolled_proposal.date_watched = Date.now();
 		server.save();
 	}),
-	anilist_test_search: async function (server, msg, args) {
-		const title = args[0];
-		if (title == null || title.length == 0) {
-			msg.reply(`Invalid anime title`);
-			return;
-		}
-
-		const res_page = await search_anilist(title, 1, 10);
-		//msg.reply(JSON.stringify(res_page.media, null, '\t'));
-		msg.channel.send(
-			new Discord.MessageEmbed().setTitle(`Results for '${title}'`).addFields(
-				res_page.media.map((media) => {
-					return {
-						name: media.title.english || media.title.romaji,
-						value: 'x', //required for some reason
-					};
-				})
-			)
-		);
-	},
 	myproposal: async function (server, msg, args) {
 		const existing_proposal = get_user_proposal(server, msg.author.id);
 		if (existing_proposal != null) {
-			const dateTimeFormat = new Intl.DateTimeFormat('es', {
-				year: 'numeric',
-				month: 'numeric',
-				day: '2-digit',
-				hour: 'numeric',
-				minute: 'numeric',
-				second: 'numeric',
-			});
-			const [
-				{ value: month },
-				,
-				{ value: day },
-				,
-				{ value: year },
-				,
-				{ value: hour },
-				,
-				{ value: minute },
-				,
-				{ value: second },
-			] = dateTimeFormat.formatToParts(existing_proposal.date_proposed);
-
 			msg.reply(
-				`Your active proposal is ${existing_proposal.title} (${year}-${month}-${day} ${hour}:${minute}:${second})`
+				`Your active proposal is ${existing_proposal.title} (${pretty_date(
+					existing_proposal.date_proposed
+				)})`
 			);
 		} else {
 			msg.reply(`You do not have an active proposal`);
@@ -343,21 +177,15 @@ const commands = {
 				prefix_end_idx,
 				title.indexOf(mal_suffix, prefix_end_idx)
 			);
-			//TODO: get_mal_media_by_id and proposal_from_mal_media
-			msg.reply(`MyAnimeList is not supported yet (Found id: ${mal_id})`);
-			// dummy condition to avoid eslint warn
-			if (msg != null) {
-				return;
-			}
 
-			const mal_media = await get_mal_media_by_id(mal_id);
-			const proposal = proposal_from_mal_media(msg, mal_media);
+			const mal_media = await get_anilist_media_by_mal_id(mal_id);
+			const proposal = proposal_from_anilist_media(msg, mal_media);
 
 			if (
 				await validate_conflicting_anime_entry(
 					msg,
 					server,
-					(anime_entry) => anime_entry.mal_id == proposal.mal_id
+					(anime_entry) => anime_entry.anilist_id == proposal.anilist_id
 				)
 			) {
 				return;
@@ -367,6 +195,7 @@ const commands = {
 			server.save();
 
 			msg.reply(`Your proposal is now set to ${proposal.title}`);
+			return;
 		}
 
 		// dummy condition to avoid eslint warn

@@ -75,7 +75,6 @@ Todos:
 - Voting
 - Querying your past, watched, proposals
 - Localization. We only really care about spanish at the moment, so this might not be worth doing and instead we just use spanish
-- Mal integration (Do we even want this? Might make the system more complex by having 2 different kinds of ids)
 - Setup CI (Testing, format checking, lint checking, deployment). Github actions?
 - Tests?
 - Hosting
