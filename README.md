@@ -58,9 +58,7 @@ To avoid the yarn/npm process, if you wish, you can run the bash scripts in /scr
 
 ## Ideas that won't make it into an MVP
 
-- Karma system for increasing luck over time for an old proposal
-- Have the bot join a voicechat and stream anime
-- anilist integration
+- Have the bot join a voicechat and stream anime (It seems there is not even an official discord API for this yet)
 - Queueing future proposals
 
 ## Contributing
