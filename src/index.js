@@ -340,7 +340,7 @@ const commands = {
 			const proposal = proposal_from_anilist_media(msg, anilist_media);
 
 			if (
-				validate_conflicting_anime_entry(
+				await validate_conflicting_anime_entry(
 					msg,
 					server,
 					(anime_entry) => anime_entry.anilist_id == proposal.anilist_id
@@ -375,7 +375,7 @@ const commands = {
 			const proposal = proposal_from_mal_media(msg, mal_media);
 
 			if (
-				validate_conflicting_anime_entry(
+				await validate_conflicting_anime_entry(
 					msg,
 					server,
 					(anime_entry) => anime_entry.mal_id == proposal.mal_id
