@@ -532,7 +532,7 @@ async function run() {
 
 			await Promise.all(client.guilds.cache.map(ensure_guild_initialization));
 		});
-		client.on('guildCreate', async ({ guild }) => {
+		client.on('guildCreate', async (guild) => {
 			await ensure_guild_initialization(guild);
 		});
 
