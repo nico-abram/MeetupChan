@@ -18,6 +18,10 @@ const oneDay = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 module.exports.days_since_date = (date) =>
 	Math.round(Math.abs((date - Date.now()) / oneDay));
 
+module.exports.compare_no_case = function (a, b) {
+	return a.localeCompare(b, undefined, { sensitivity: 'base' }) === 0;
+};
+
 module.exports.pretty_date = function (date) {
 	const dateTimeFormat = new Intl.DateTimeFormat('es', {
 		year: 'numeric',

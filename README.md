@@ -69,9 +69,9 @@ We use eslint for linting and prettier for formatting. You can run `yarn lint` a
 
 Todos:
 
+- TODOs in the code
 - Validate if our moongose schema makes sense
 - Overwriting existing proposal
-- Setting the mod role (admin only)
 - Voting
 - Querying your past, watched, proposals
 - Localization. We only really care about spanish at the moment, so this might not be worth doing and instead we just use spanish

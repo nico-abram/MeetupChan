@@ -12,6 +12,7 @@ module.exports.AnimeEntryObject = new Schema({
 	title: String,
 	anilist_id: String,
 	mal_id: String,
+	strikes: Number,
 });
 module.exports.Server = mongoose.model(
 	'Server',
@@ -20,7 +21,9 @@ module.exports.Server = mongoose.model(
 		//serverName: String,
 		config: {
 			prefix: String,
-			mod_role_id: String,
+			mod_role_ids: [String],
+			base_roll_weight: Number,
+			voice_channel_ids: [String],
 		},
 		anime_queue: [module.exports.AnimeEntryObject],
 	})

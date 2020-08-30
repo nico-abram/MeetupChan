@@ -1,7 +1,16 @@
 require('dotenv').config();
 
 const char_to_emoji = require('./emoji_characters');
-const { weighted_roll, days_since_date, pretty_date } = require('./utils');
+const emoji_to_char = Object.entries(char_to_emoji).reduce((ret, entry) => {
+	ret[entry.value] = entry.key;
+	return ret;
+}, {});
+const {
+	weighted_roll,
+	compare_no_case,
+	days_since_date,
+	pretty_date,
+} = require('./utils');
 const {
 	search_anilist,
 	get_anilist_media_by_id,
@@ -9,10 +18,6 @@ const {
 	proposal_from_anilist_media,
 } = require('./anilist');
 
-const emoji_to_char = Object.entries(char_to_emoji).reduce((ret, entry) => {
-	ret[entry.value] = entry.key;
-	return ret;
-}, {});
 const Discord = require('discord.js');
 const {
 	mongoose,
@@ -23,17 +28,60 @@ const {
 } = require('./db.js');
 
 const DEFAULT_PREFIX = '|';
-const BASE_ROLL_WEIGHT = 1;
+const DEFAULT_BASE_ROLL_WEIGHT = 1;
 
 async function ensure_guild_initialization(guild) {
 	const server = await Server.find({ serverId: guild.id }).exec();
 	if (server[0] == null) {
 		await Server.create({
 			server_id: guild.id,
-			config: { prefix: DEFAULT_PREFIX, mod_role_id: null },
+			config: {
+				prefix: DEFAULT_PREFIX,
+				base_roll_weight: DEFAULT_BASE_ROLL_WEIGHT,
+				mod_role_ids: [],
+				voice_channel_ids: [],
+			},
 			anime_queue: [],
 		});
 	}
+}
+
+function member_display_name(member) {
+	return member.nickname || member.user.username;
+}
+
+function get_voice_channel_from_name(msg, voice_channel_name) {
+	const channels = msg.guild.channels.cache.array();
+	const matched_voice_channels = channels.filter(
+		(channel) =>
+			channel.type === 'voice' &&
+			compare_no_case(channel.name, voice_channel_name)
+	);
+	if (matched_voice_channels.length == 0) {
+		msg.reply(`Could not find voice channel '${voice_channel_name}'`);
+		return null;
+	} else if (matched_voice_channels.length > 1) {
+		msg.reply(
+			`Found multiple voice channels for search '${voice_channel_name}'`
+		);
+		return null;
+	}
+	return matched_voice_channels[0];
+}
+
+async function get_role_from_name(msg, role_name) {
+	const roles = (await msg.guild.roles.fetch()).cache.array();
+	const matched_roles = roles.filter((role) =>
+		compare_no_case(role.name, role_name)
+	);
+	if (matched_roles.length == 0) {
+		msg.reply(`Could not find role '${role_name}'`);
+		return null;
+	} else if (matched_roles.length > 1) {
+		msg.reply(`Found multiple roles for search '${role_name}'`);
+		return null;
+	}
+	return matched_roles[0];
 }
 
 function is_admin(member) {
@@ -46,8 +94,20 @@ async function is_mod(member, server) {
 	}
 	return (
 		is_admin(member) ||
-		member.roles.cache.find((role) => role.id === server.config.mod_role_id)
+		(await member.roles.fetch()).cache.find((role) =>
+			server.config.mod_role_ids.includes(role.id)
+		)
 	);
+}
+
+function admincommand_wrapper(fn) {
+	return async function (server, msg, args) {
+		if (await is_admin(msg.member)) {
+			fn(server, msg, args);
+		} else {
+			msg.reply("You're not an admin!");
+		}
+	};
 }
 
 function modcommand_wrapper(fn) {
@@ -68,10 +128,11 @@ async function validate_conflicting_anime_entry(msg, server, filter) {
 		);
 		//TODO: What do if member left server?
 		msg.reply(
-			`${conflicting_anime_entry.title} has already been proposed by ${
-				member_who_already_proposed.nickname ||
-				member_who_already_proposed.user.username
-			}`
+			`${
+				conflicting_anime_entry.title
+			} has already been proposed by ${member_display_name(
+				member_who_already_proposed
+			)}`
 		);
 		return true;
 	}
@@ -80,6 +141,122 @@ async function validate_conflicting_anime_entry(msg, server, filter) {
 const client = new Discord.Client();
 
 const commands = {
+	addvoicechannel: admincommand_wrapper(async function (server, msg, args) {
+		const voice_channel_name = msg.content.substr(msg.content.indexOf(' ') + 1);
+		if (voice_channel_name == null || voice_channel_name.length == 0) {
+			msg.reply(`Missing voice channel name`);
+			return;
+		}
+
+		const voice_channel = get_voice_channel_from_name(msg, voice_channel_name);
+		if (voice_channel == null) return;
+
+		const server_voice_channel_ids = server.config.voice_channel_ids;
+		if (server_voice_channel_ids.includes(voice_channel.id)) {
+			msg.reply(`'${voice_channel_name}' is already a meetup voice channel!`);
+			return;
+		}
+
+		server_voice_channel_ids.push(voice_channel.id);
+		server.save();
+		msg.reply(`Added '${voice_channel.name}' as a meetup voice channel`);
+	}),
+	removevoicechannel: admincommand_wrapper(async function (server, msg, args) {
+		const voice_channel_name = msg.content.substr(msg.content.indexOf(' ') + 1);
+		if (voice_channel_name == null || voice_channel_name.length == 0) {
+			msg.reply(`Missing voice channel name`);
+			return;
+		}
+
+		const voice_channel = get_voice_channel_from_name(msg, voice_channel_name);
+		if (voice_channel == null) return;
+
+		const server_voice_channel_ids = server.config.voice_channel_ids;
+		if (!server_voice_channel_ids.includes(voice_channel.id)) {
+			msg.reply(`'${voice_channel_name}' is not a meetup voice channel!`);
+			return;
+		}
+
+		server_voice_channel_ids.splice(
+			server_voice_channel_ids.indexOf(voice_channel.id),
+			1
+		);
+		server.save();
+		msg.reply(`'${voice_channel.name}' is no longer a meetup voice channel`);
+	}),
+	listvoicechannels: admincommand_wrapper(async function (server, msg, args) {
+		let channels = server.config.voice_channel_ids.map(
+			(voice_channel_id) => msg.guild.channels.resolve(voice_channel_id).name
+		);
+		let response_msg = 'Meetup Voice Channels: \n' + channels.join('\n');
+		msg.reply(response_msg);
+	}),
+	rollbaseweight: admincommand_wrapper(async function (server, msg, args) {
+		const new_base_weight_str = args[0];
+		if (new_base_weight_str == null || new_base_weight_str.length == 0) {
+			msg.reply(`Base roll weight is set to ${server.base_roll_weight}`);
+			return;
+		}
+
+		const new_base_roll_weight = parseInt(new_base_weight_str, 10);
+		if (isNaN(new_base_roll_weight)) {
+			msg.reply(
+				`${new_base_weight_str} is not a valid number! Base roll weight remains unchanged (${server.base_roll_weight})`
+			);
+			return;
+		}
+
+		server.base_roll_weight = new_base_roll_weight;
+		msg.reply(`Server base roll weight set to ${new_base_weight_str}`);
+		server.save();
+	}),
+	addmodrole: admincommand_wrapper(async function (server, msg, args) {
+		const role_name = msg.content.substr(msg.content.indexOf(' ') + 1);
+		if (role_name == null || role_name.length == 0) {
+			msg.reply(`Missing role name`);
+			return;
+		}
+
+		const role = await get_role_from_name(msg, role_name);
+		if (role == null) return;
+
+		const server_mod_role_ids = server.config.mod_role_ids;
+		if (server_mod_role_ids.includes(role.id)) {
+			msg.reply(`'${role_name}' is already a mod role!`);
+			return;
+		}
+		server_mod_role_ids.push(role.id);
+		server.save();
+		msg.reply(`Added '${role.name}' as a mod role`);
+	}),
+	removemodrole: admincommand_wrapper(async function (server, msg, args) {
+		const role_name = msg.content.substr(msg.content.indexOf(' ') + 1);
+		if (role_name == null || role_name.length == 0) {
+			msg.reply(`Missing role name`);
+			return;
+		}
+
+		const role = await get_role_from_name(msg, role_name);
+		if (role == null) return;
+
+		const server_mod_role_ids = server.config.mod_role_ids;
+		if (!server_mod_role_ids.includes(role.id)) {
+			msg.reply(`'${role_name}' is not a mod role!`);
+			return;
+		}
+		server_mod_role_ids.splice(server_mod_role_ids.indexOf(role.id), 1);
+		server.save();
+		msg.reply(`'${role.name}' is no longer a mod role`);
+	}),
+	listmodroles: admincommand_wrapper(async function (server, msg, args) {
+		let roles = await Promise.all(
+			server.config.mod_role_ids.map((role_id) =>
+				msg.guild.roles.fetch(role_id).then((role) => role.name)
+			)
+		);
+		let response_msg = 'Mod Roles: \n' + roles.join('\n');
+		msg.reply(response_msg);
+	}),
 	setprefix: modcommand_wrapper(async function (server, msg, args) {
 		const new_prefix = args[0];
 		if (new_prefix != null && new_prefix.length == 1) {
@@ -99,17 +276,53 @@ const commands = {
 			return;
 		}
 
-		const oneDay = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
-		const now = Date.now();
 		let weights = proposals.map(
 			(proposal) =>
-				BASE_ROLL_WEIGHT +
+				server.base_roll_weight +
 				Math.floor(days_since_date(proposal.date_proposed) / 7)
 		);
 
-		var rolled_proposal = weighted_roll(proposals, weights);
+		const rolled_proposal = weighted_roll(proposals, weights);
 
-		msg.reply(rolled_proposal.title);
+		const rolled_member = await msg.guild.members.fetch(
+			rolled_proposal.user_id
+		);
+		if (rolled_member == null) {
+			//TODO: Member left server
+			msg.reply(
+				`Rolled '${rolled_proposal.title}' proposed by someone who left the server (TODO: Handle this (Remove the proposal?))`
+			);
+			return;
+		}
+
+		const user_is_present = server.config.voice_channel_ids.find(
+			(voice_channel_id) =>
+				msg.guild.channels
+					.resolve(voice_channel_id)
+					.members.some((member) => member.user.id == rolled_proposal.user_id)
+		);
+
+		if (!user_is_present) {
+			//TODO: Proposal removal upon 3 strikes?
+			//TODO: Check that we have not already striked this proposal in the last 24 hs
+			//      to prevent it from getting striked multiple times in a single meetup
+			rolled_proposal.strikes += 1;
+			msg.reply(
+				`Rolled '${rolled_proposal.title}' proposed by ${member_display_name(
+					rolled_member
+				)} who is not present. Proposal was given a strike (It has ${
+					rolled_proposal.strikes
+				} strikes)`
+			);
+			server.save();
+			return;
+		}
+
+		msg.reply(
+			`Rolled '${rolled_proposal.title}' proposed by ${member_display_name(
+				rolled_member
+			)}`
+		);
 		rolled_proposal.watched = true;
 		rolled_proposal.date_watched = Date.now();
 		server.save();
@@ -240,6 +453,7 @@ const commands = {
 					title: title,
 					anilist_id: null,
 					mal_id: null,
+					strikes: 0,
 				};
 				server.anime_queue.push(proposal);
 				server.save();
