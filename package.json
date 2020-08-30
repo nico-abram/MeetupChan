@@ -18,7 +18,7 @@
 	},
 	"scripts": {
 		"dev": "node src/index.js",
-		"prod": "pm2 start src/index.js --name meetupchan",
+		"prod": "pm2 start src/index.js --no-daemon --name meetupchan",
 		"prod-stop": "pm2 delete meetupchan",
 		"watch": "npm-watch",
 		"lint": "eslint \"**/*.js\" --ignore-pattern node_modules/",

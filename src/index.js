@@ -32,7 +32,7 @@ const DEFAULT_BASE_ROLL_WEIGHT = 1;
 const DEFAULT_REMOVAL_STRIKE_COUNT = 3;
 
 async function ensure_guild_initialization(guild) {
-	const servers = await Server.find({ serverId: guild.id }).exec();
+	const servers = await Server.find({ server_id: guild.id }).exec();
 	if (servers[0] == null) {
 		await Server.create({
 			server_id: guild.id,
@@ -102,9 +102,6 @@ function is_admin(member) {
 }
 
 async function is_mod(member, server) {
-	if (server == null) {
-		server = await Server.find({ serverId: member.guild.id }).exec();
-	}
 	return (
 		is_admin(member) ||
 		(await member.roles.fetch()).cache.find((role) =>
@@ -540,7 +537,7 @@ async function run() {
 		});
 
 		client.on('message', async (msg) => {
-			const [server] = await Server.find({ serverId: msg.guild.id }).exec();
+			const [server] = await Server.find({ server_id: msg.guild.id }).exec();
 			const prefix = server.config.prefix;
 			if (!msg.content.startsWith(prefix) || msg.author.bot) return;
 
