@@ -6,8 +6,7 @@ MeetupChan is a discord bot to organize virtual anime watching meetups. Each use
 
 ## Status
 
-The bot can basically not do anything correctly right now (Why am I even writing a readme at this point?)
-Proposing an anime via `propose title of the series` kinda works
+The bot can add a proposal for as user with an anilist link ("|propose anilist-url") and roll ("|roll"). Rolling currently increases chances every 1 week since proposed (Linearly, starts at a chance of 1 and increases by 1 every week). You can also query your current proposal using "|myproposal" and mods can change the command prefix with "|setprefix"
 
 ## Running
 
@@ -70,15 +69,13 @@ We use eslint for linting and prettier for formatting. You can run `yarn lint` a
 
 Todos:
 
-- Roll command (Mod only)
+- Validate if our moongose schema makes sense
 - Overwriting existing proposal
-- Querying your current proposal
+- Setting the mod role (admin only)
+- Voting
 - Querying your past, watched, proposals
 - Localization. We only really care about spanish at the moment, so this might not be worth doing and instead we just use spanish
-- Setting the mod role
-- Voting
-- Anilist/Mal integration
-- Validate moongose schema
+- Mal integration (Do we even want this? Might make the system more complex by having 2 different kinds of ids)
 - Setup CI (Testing, format checking, lint checking, deployment). Github actions?
 - Tests?
 - Hosting
