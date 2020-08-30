@@ -211,14 +211,36 @@ const commands = {
 			msg.reply('There are no proposals to roll from!');
 			return;
 		}
-		const rolled_proposal =
-			proposals[Math.floor(Math.random() * proposals.length)];
+
+		const oneDay = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
+		const now = Date.now();
+		const days_since = (date) =>
+			Math.round(Math.abs((date - now) / oneDay)) % 7;
+		let weights = proposals.map(
+			(proposal) => 1 + Math.floor(days_since(proposal.date_proposed) / 7)
+		);
+
+		const total_weight = weights.reduce(
+			(total_weight, weight) => total_weight + weight,
+			0
+		);
+		// We distribute the weights such that something like [1,1,2] is now [1,2,4]
+		let tmp_accumulator = 0;
+		weights = weights.map((el) => {
+			tmp_accumulator = el + tmp_accumulator;
+			return tmp_accumulator;
+		});
+
+		var rand = Math.random() * total_weight;
+		var rolled_proposal =
+			proposals[weights.findIndex((weight) => weight > rand)];
+
 		msg.reply(rolled_proposal.title);
 		rolled_proposal.watched = true;
 		rolled_proposal.date_watched = Date.now();
 		server.save();
 	}),
-	mal: async function (server, msg, args) {
+	anilist_test_search: async function (server, msg, args) {
 		const title = args[0];
 		if (title == null || title.length == 0) {
 			msg.reply(`Invalid anime title`);
@@ -232,7 +254,7 @@ const commands = {
 				res_page.media.map((media) => {
 					return {
 						name: media.title.english || media.title.romaji,
-						value: 'x',
+						value: 'x', //required for some reason
 					};
 				})
 			)
@@ -270,50 +292,7 @@ const commands = {
 			msg.reply(`You do not have an active proposal`);
 		}
 	},
-	unchecked_test_title_propose: async function (server, msg, args) {
-		const title = args[0];
-		if (title == null || title.length == 0) {
-			msg.reply(`Missing anime title`);
-			return;
-		}
-		const anime_entry_with_same_title = server.anime_queue.find(
-			(anime_entry) => anime_entry.title == title
-		);
-		const existing_proposal = get_user_proposal(server, msg.author.id);
-		if (anime_entry_with_same_title) {
-			const member_who_already_proposed = await msg.guild.members.fetch(
-				anime_entry_with_same_title.user_id
-			);
-			//TODO: What do if member left server?
-			msg.reply(
-				`${title} has already been proposed by ${
-					member_who_already_proposed.nickname ||
-					member_who_already_proposed.user.username
-				}`
-			);
-		}
-		if (existing_proposal) {
-			msg.reply(`You have already proposed ${existing_proposal.title}`);
-		}
-		if (existing_proposal || anime_entry_with_same_title) {
-			return;
-		}
-		const proposal = {
-			votes: [],
-			user_id: msg.author.id,
-			date_proposed: Date.now(),
-			date_watched: null,
-			watched: false,
-			title: title,
-			anilist_id: null,
-			mal_id: null,
-		};
-		server.anime_queue.push(proposal);
-		server.save();
-
-		msg.reply(`Your proposal is now set to ${title}`);
-	},
-	malpropose: async function (server, msg, args) {
+	propose: async function (server, msg, args) {
 		const title = msg.content.substr(msg.content.indexOf(' ') + 1);
 		if (title == null || title.length == 0) {
 			msg.reply(`Missing anime title`);
