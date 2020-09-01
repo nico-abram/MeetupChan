@@ -137,6 +137,8 @@ Todos:
 
 - Disable proposals during meetups (Should be able to set a week day and duration in hours)
 - TODOs in the code
+- Disallow proposals in a set time period (weekday+time + duration in hours)
+- Automatically reroll (Be careful to not fall into an infinite loop if there are only pending proposals from absent users)
 - Validate if our moongose schema makes sense
 - Querying your past, watched, proposals
 - Localization. We only really care about spanish at the moment, so this might not be worth doing and instead we just use spanish
