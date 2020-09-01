@@ -112,7 +112,6 @@ module.exports.strike_proposal = async function (server, proposal_to_remove) {
 };
 
 module.exports.add_proposal = async function (server, proposal) {
-	console.log(proposal);
 	await Server.update(
 		{ server_id: server.server_id },
 		{ $push: { anime_queue: proposal } }
