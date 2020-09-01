@@ -128,6 +128,7 @@ To avoid the yarn/npm process, if you wish, you can run the bash scripts in /scr
 
 - Have the bot join a voicechat and stream anime (It seems there is not even an official discord API for this yet)
 - Queueing future proposals
+- Making top 5/10 image banners for a meetup using anilist images with vote averages
 
 ## Contributing
 
@@ -139,9 +140,7 @@ Todos:
 - TODOs in the code
 - Disallow proposals in a set time period (weekday+time + duration in hours)
 - Automatically reroll (Be careful to not fall into an infinite loop if there are only pending proposals from absent users)
-- Validate if our moongose schema makes sense
 - Querying your past, watched, proposals
 - Localization. We only really care about spanish at the moment, so this might not be worth doing and instead we just use spanish
-- Setup CI (Testing, format checking, lint checking, deployment). Github actions?
-- Tests?
+- Tests and CI testing
 - Cleanup code a bit
