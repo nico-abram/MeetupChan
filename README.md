@@ -20,9 +20,13 @@ There is a karma system in place to add luck to proposals over time (So older pr
 
 - Propose an anime
 
+> Note: To overwrite existing proposals use |propose -f https://anilist.co/anime/110353/DecaDence
+
 `|propose https://anilist.co/anime/110353/DecaDence`
 
 `|propose https://myanimelist.net/anime/634/Koi_Kaze`
+
+`|propose -f https://myanimelist.net/anime/634/Koi_Kaze`
 
 - Get your current proposal
 
@@ -31,6 +35,12 @@ There is a karma system in place to add luck to proposals over time (So older pr
 - Roll from unwatched proposals (Mod only)
 
 `|roll`
+
+- Start a vote for the last rolled anime (Mod only)
+
+> Note: The vote works with 1-9 number emoji reactions, and the reaction message is sent in the same channel as the vote command
+
+`|vote`
 
 - Role Management (Admin only)
 
