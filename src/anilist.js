@@ -95,6 +95,34 @@ module.exports.get_anilist_media_by_mal_id = async function (mal_id) {
 	return res.data.data.Media;
 };
 
+module.exports.get_anilist_url_and_thumbnail_url_by_anilist_id = async function (
+	anilist_id
+) {
+	const url = 'https://graphql.anilist.co/';
+	const query = `query ($anilist_id: Int) {
+			Media(id: $anilist_id, type: ANIME) {
+				coverImage {
+					large
+				}
+				siteUrl
+			}
+		}
+		`;
+	const res = await axios
+		.post(url, {
+			query,
+			variables: {
+				anilist_id,
+			},
+		})
+		.catch(console.log);
+	const media = res.data.data.Media;
+	return {
+		thumbnail_url: media.coverImage.large,
+		anilist_url: media.siteUrl,
+	};
+};
+
 module.exports.proposal_from_anilist_media = function (msg, media) {
 	return {
 		votes: [],

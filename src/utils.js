@@ -30,6 +30,8 @@ module.exports.pretty_date = function (date) {
 		hour: 'numeric',
 		minute: 'numeric',
 		second: 'numeric',
+		timeZoneName: 'short',
+		timeZone: 'America/Argentina/Buenos_Aires', //TODO: Handle timezone better somehow
 	});
 	const [
 		{ value: month },
@@ -43,6 +45,8 @@ module.exports.pretty_date = function (date) {
 		{ value: minute },
 		,
 		{ value: second },
+		,
+		{ value: timeZoneName },
 	] = dateTimeFormat.formatToParts(date);
-	return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+	return `${year}-${month}-${day} ${hour}:${minute} ${timeZoneName}`;
 };
