@@ -402,8 +402,6 @@ const commands = {
 		);
 
 		if (!user_is_present) {
-			//TODO: Check that we have not already striked this proposal in the last 24 hs
-			//      to prevent it from getting striked multiple times in a single meetup
 			const ONE_HOUR = 60 * 60 * 1000;
 			const most_recent_strike_date = new Date(
 				Math.max.apply(null, rolled_proposal.strike_dates)

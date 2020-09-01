@@ -125,6 +125,7 @@ We use eslint for linting and prettier for formatting. You can run `yarn lint` a
 
 Todos:
 
+- Disable proposals during meetups (Should be able to set a week day and duration in hours)
 - TODOs in the code
 - Validate if our moongose schema makes sense
 - Overwriting existing proposal
