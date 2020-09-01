@@ -1,6 +1,7 @@
 const axios = require('axios');
 
 module.exports.search_anilist = async function (title, page, perPage) {
+	return;
 	const url = 'https://graphql.anilist.co/';
 	const query = `query ($search: String, $page: Int, $perPage: Int) {
 			Page(page: $page, perPage: $perPage) {
