@@ -469,7 +469,18 @@ const commands = {
 		}
 	},
 	propose: async function (server, msg, args) {
-		const title = msg.content.substr(msg.content.indexOf(' ') + 1);
+		let title;
+		let force;
+		if (args[0] == '-f') {
+			force = true;
+			title = msg.content
+				.substr(msg.content.indexOf(' ') + 1)
+				.substr(msg.content.indexOf(' ') + 1);
+		} else {
+			force = false;
+			title = msg.content.substr(msg.content.indexOf(' ') + 1);
+		}
+
 		if (title == null || title.length == 0) {
 			msg.reply(`Missing anime title`);
 			return;
@@ -477,8 +488,14 @@ const commands = {
 
 		const existing_proposal = await get_user_proposal(server, msg.author.id);
 		if (existing_proposal) {
-			msg.reply(`You have already proposed ${existing_proposal.title}`);
-			return;
+			if (!force) {
+				msg.reply(
+					`You have already proposed ${existing_proposal.title}\nUse '${server.config.prefix}propose -f ${title}' to overwrite it`
+				);
+				return;
+			} else {
+				remove_proposal(server, existing_proposal);
+			}
 		}
 
 		const anilist_prefix = 'anilist.co/anime/';

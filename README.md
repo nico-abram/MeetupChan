@@ -128,7 +128,6 @@ Todos:
 - Disable proposals during meetups (Should be able to set a week day and duration in hours)
 - TODOs in the code
 - Validate if our moongose schema makes sense
-- Overwriting existing proposal
 - Voting
 - Querying your past, watched, proposals
 - Localization. We only really care about spanish at the moment, so this might not be worth doing and instead we just use spanish
