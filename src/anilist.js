@@ -105,6 +105,6 @@ module.exports.proposal_from_anilist_media = function (msg, media) {
 		title: media.title.english || media.title.romaji,
 		anilist_id: media.id,
 		mal_id: media.idMal,
-		strikes: 0,
+		strike_dates: [],
 	};
 };

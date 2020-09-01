@@ -1,10 +1,13 @@
 require('dotenv').config();
 
 const char_to_emoji = require('./emoji_characters');
-const emoji_to_char = Object.entries(char_to_emoji).reduce((ret, entry) => {
-	ret[entry.value] = entry.key;
-	return ret;
-}, {});
+const emoji_to_char = Object.entries(char_to_emoji).reduce(
+	(ret, [key, value]) => {
+		ret[value] = key.toString();
+		return ret;
+	},
+	{}
+);
 const {
 	weighted_roll,
 	compare_no_case,
@@ -24,7 +27,13 @@ const {
 	Server,
 	get_user_proposal,
 	get_user_watched_proposals,
-	get_server_proposals,
+	get_server_unwatched_proposals,
+	get_proposal_from_anilist_id,
+	get_most_recent_watched_proposal,
+	get_server_without_anime_queue,
+	remove_proposal,
+	add_proposal,
+	save_proposal,
 } = require('./db.js');
 
 const DEFAULT_PREFIX = '|';
@@ -32,8 +41,8 @@ const DEFAULT_BASE_ROLL_WEIGHT = 1;
 const DEFAULT_REMOVAL_STRIKE_COUNT = 3;
 
 async function ensure_guild_initialization(guild) {
-	const servers = await Server.find({ server_id: guild.id }).exec();
-	if (servers[0] == null) {
+	const server = await get_server_without_anime_queue(guild.id);
+	if (server == null) {
 		await Server.create({
 			server_id: guild.id,
 			config: {
@@ -44,9 +53,9 @@ async function ensure_guild_initialization(guild) {
 				voice_channel_ids: [],
 			},
 			anime_queue: [],
+			striked_proposals: [],
 		});
 	} else {
-		const server = servers[0];
 		if (server.config.base_roll_weight == null)
 			server.config.base_roll_weight = DEFAULT_BASE_ROLL_WEIGHT;
 		if (server.config.voice_channel_ids == null)
@@ -55,6 +64,7 @@ async function ensure_guild_initialization(guild) {
 		if (server.config.prefix == null) server.config.prefix = DEFAULT_PREFIX;
 		if (server.config.removal_strike_count == null)
 			server.config.removal_strike_count = DEFAULT_REMOVAL_STRIKE_COUNT;
+		if (server.striked_proposals == null) server.striked_proposals = [];
 		server.save();
 	}
 }
@@ -130,8 +140,11 @@ function modcommand_wrapper(fn) {
 	};
 }
 
-async function validate_conflicting_anime_entry(msg, server, filter) {
-	const conflicting_anime_entry = server.anime_queue.find(filter);
+async function validate_conflicting_anime_entry(msg, server, anilist_id) {
+	const conflicting_anime_entry = await get_proposal_from_anilist_id(
+		server,
+		anilist_id
+	);
 	if (conflicting_anime_entry != null) {
 		const member_who_already_proposed = await msg.guild.members.fetch(
 			conflicting_anime_entry.user_id
@@ -193,6 +206,58 @@ const commands = {
 		);
 		server.save();
 		msg.reply(`'${voice_channel.name}' is no longer a meetup voice channel`);
+	}),
+	vote: modcommand_wrapper(async function (server, msg, args) {
+		const last_watched_proposal = await get_most_recent_watched_proposal(
+			server
+		);
+
+		if (last_watched_proposal == null) {
+			msg.reply(`There are no watched proposals!`);
+			return;
+		}
+
+		if (last_watched_proposal.votes.length != 0) {
+			msg.reply(
+				`The last watched proposal '${last_watched_proposal.title}' already has votes!`
+			);
+			return;
+		}
+
+		const channel = msg.channel;
+		const vote_msg = await channel.send(
+			`Vote for '${last_watched_proposal.title}'`
+		);
+
+		const filter = (reaction, user) => {
+			if (user.id == client.user.id) return false;
+			const char = emoji_to_char[reaction.emoji.name];
+			return char != null && !isNaN(char);
+		};
+
+		const collector = vote_msg.createReactionCollector(filter, {
+			time: 10 * 60 * 1000, // 10 minutes //TODO: Make this configurable?
+		});
+		collector.on('collect', (reaction, user) => {
+			const score = parseInt(emoji_to_char[reaction.emoji.name], 10);
+
+			//TODO: Update message with results?
+			const existing_vote = last_watched_proposal.votes.find(
+				(vote) => vote.user_id != user.id
+			);
+			if (existing_vote != null) {
+				existing_vote.score = score;
+			} else {
+				last_watched_proposal.votes.push({
+					user_id: user.id,
+					score,
+				});
+			}
+		});
+		collector.on('end', (collected) => {
+			save_proposal(server, last_watched_proposal);
+		});
+		[1, 2, 3, 4, 5, 6, 7, 8, 9].map((x) => vote_msg.react(char_to_emoji[x]));
 	}),
 	listvoicechannels: modcommand_wrapper(async function (server, msg, args) {
 		let channels = server.config.voice_channel_ids.map(
@@ -304,7 +369,7 @@ const commands = {
 		}
 	}),
 	roll: modcommand_wrapper(async function (server, msg, args) {
-		const proposals = get_server_proposals(server);
+		const proposals = await get_server_unwatched_proposals(server);
 		if (proposals.length == 0) {
 			msg.reply('There are no proposals to roll from!');
 			return;
@@ -337,35 +402,50 @@ const commands = {
 		);
 
 		if (!user_is_present) {
-			//TODO: Proposal removal upon 3 strikes?
 			//TODO: Check that we have not already striked this proposal in the last 24 hs
 			//      to prevent it from getting striked multiple times in a single meetup
-			rolled_proposal.strikes += 1;
-			if (rolled_proposal.strikes >= server.config.removal_strike_count) {
+			const ONE_HOUR = 60 * 60 * 1000;
+			const most_recent_strike_date = new Date(
+				Math.max.apply(null, rolled_proposal.strike_dates)
+			);
+			if (Date.now() - most_recent_strike_date < ONE_HOUR * 24) {
 				msg.reply(
 					`Rolled '${rolled_proposal.title}' proposed by ${member_display_name(
 						rolled_member
-					)} who is not present. Proposal was removed for reaching the removal strike count (${
-						server.config.removal_strike_count
-					})`
+					)} who is not present. Proposal remains unchanged since it was already rolled ${pretty_date(
+						most_recent_strike_date
+					)}`
 				);
-				server.anime_queue.splice(
-					server.anime_queue.findIndex(
-						(proposal) => proposal._id == rolled_proposal._id
-					),
-					1
+			} else {
+				rolled_proposal.strike_dates.push(Date.now());
+				if (
+					rolled_proposal.strike_dates.length >=
+					server.config.removal_strike_count
+				) {
+					msg.reply(
+						`Rolled '${
+							rolled_proposal.title
+						}' proposed by ${member_display_name(
+							rolled_member
+						)} who is not present. Proposal was removed for reaching the removal strike count (${
+							server.config.removal_strike_count
+						})`
+					);
+					remove_proposal(server, rolled_proposal);
+
+					//TODO: DM or mention the user that their proposal got striked
+					return;
+				}
+				msg.reply(
+					`Rolled '${rolled_proposal.title}' proposed by ${member_display_name(
+						rolled_member
+					)} who is not present. Proposal was given a strike (It has ${
+						rolled_proposal.strike_dates.length
+					} strikes)`
 				);
-				server.save();
-				return;
+				save_proposal(server, rolled_proposal);
 			}
-			msg.reply(
-				`Rolled '${rolled_proposal.title}' proposed by ${member_display_name(
-					rolled_member
-				)} who is not present. Proposal was given a strike (It has ${
-					rolled_proposal.strikes
-				} strikes)`
-			);
-			server.save();
+			//TODO: Reroll
 			return;
 		}
 
@@ -376,10 +456,10 @@ const commands = {
 		);
 		rolled_proposal.watched = true;
 		rolled_proposal.date_watched = Date.now();
-		server.save();
+		save_proposal(server, rolled_proposal);
 	}),
 	myproposal: async function (server, msg, args) {
-		const existing_proposal = get_user_proposal(server, msg.author.id);
+		const existing_proposal = await get_user_proposal(server, msg.author.id);
 		if (existing_proposal != null) {
 			msg.reply(
 				`Your active proposal is ${existing_proposal.title} (${pretty_date(
@@ -397,7 +477,7 @@ const commands = {
 			return;
 		}
 
-		const existing_proposal = get_user_proposal(server, msg.author.id);
+		const existing_proposal = await get_user_proposal(server, msg.author.id);
 		if (existing_proposal) {
 			msg.reply(`You have already proposed ${existing_proposal.title}`);
 			return;
@@ -417,17 +497,12 @@ const commands = {
 			const proposal = proposal_from_anilist_media(msg, anilist_media);
 
 			if (
-				await validate_conflicting_anime_entry(
-					msg,
-					server,
-					(anime_entry) => anime_entry.anilist_id == proposal.anilist_id
-				)
+				await validate_conflicting_anime_entry(msg, server, proposal.anilist_id)
 			) {
 				return;
 			}
 
-			server.anime_queue.push(proposal);
-			server.save();
+			add_proposal(server, proposal);
 
 			msg.reply(`Your proposal is now set to ${proposal.title}`);
 			return;
@@ -446,17 +521,12 @@ const commands = {
 			const proposal = proposal_from_anilist_media(msg, mal_media);
 
 			if (
-				await validate_conflicting_anime_entry(
-					msg,
-					server,
-					(anime_entry) => anime_entry.anilist_id == proposal.anilist_id
-				)
+				await validate_conflicting_anime_entry(msg, server, proposal.anilist_id)
 			) {
 				return;
 			}
 
-			server.anime_queue.push(proposal);
-			server.save();
+			add_proposal(server, proposal);
 
 			msg.reply(`Your proposal is now set to ${proposal.title}`);
 			return;
@@ -504,10 +574,9 @@ const commands = {
 					title: title,
 					anilist_id: null,
 					mal_id: null,
-					strikes: 0,
+					strike_dates: [],
 				};
-				server.anime_queue.push(proposal);
-				server.save();
+				add_proposal(server, proposal);
 
 				msg.reply(`Your proposal is now set to ${title}`);
 			})
@@ -537,7 +606,7 @@ async function run() {
 		});
 
 		client.on('message', async (msg) => {
-			const [server] = await Server.find({ server_id: msg.guild.id }).exec();
+			const server = await get_server_without_anime_queue(msg.guild.id);
 			const prefix = server.config.prefix;
 			if (!msg.content.startsWith(prefix) || msg.author.bot) return;
 

@@ -10,11 +10,12 @@ module.exports.AnimeEntryObject = new Schema({
 	date_watched: Date, // Null if not watched
 	watched: Boolean,
 	title: String,
-	anilist_id: String,
-	mal_id: String,
-	strikes: Number,
+	anilist_id: Number,
+	mal_id: Number,
+	strike_dates: [Date],
 });
-module.exports.Server = mongoose.model(
+
+const Server = mongoose.model(
 	'Server',
 	new Schema({
 		server_id: String,
@@ -27,25 +28,111 @@ module.exports.Server = mongoose.model(
 			removal_strike_count: Number,
 		},
 		anime_queue: [module.exports.AnimeEntryObject],
+		striked_proposals: [module.exports.AnimeEntryObject],
 	})
 );
+module.exports.Server = Server;
 
-module.exports.get_user_proposal = function (server, user_id) {
-	return server.anime_queue.find(
-		(anime_entry) =>
-			anime_entry.watched == false && anime_entry.user_id == user_id
-	);
+module.exports.get_user_proposal = async function (server, user_id) {
+	return (
+		await Server.aggregate([
+			{ $match: { server_id: server.server_id } },
+			{ $unwind: '$anime_queue' },
+			{ $replaceRoot: { newRoot: '$anime_queue' } },
+			{
+				$match: { user_id: user_id, watched: false },
+			},
+		]).exec()
+	)[0];
 };
 
-module.exports.get_user_watched_proposals = function (server, user_id) {
-	return server.anime_queue.filter(
-		(anime_entry) =>
-			anime_entry.watched == true && anime_entry.user_id == user_id
-	);
+module.exports.get_user_watched_proposals = async function (server, user_id) {
+	return await Server.aggregate([
+		{ $match: { server_id: server.server_id } },
+		{ $unwind: '$anime_queue' },
+		{ $replaceRoot: { newRoot: '$anime_queue' } },
+		{
+			$match: { user_id: user_id, watched: true },
+		},
+	]).exec();
 };
 
-module.exports.get_server_proposals = function (server) {
-	return server.anime_queue.filter(
-		(anime_entry) => anime_entry.watched == false
-	);
+module.exports.get_server_unwatched_proposals = async function (server) {
+	return await Server.aggregate([
+		{ $match: { server_id: server.server_id } },
+		{ $unwind: '$anime_queue' },
+		{ $replaceRoot: { newRoot: '$anime_queue' } },
+		{
+			$match: { watched: false },
+		},
+	]).exec();
+};
+
+module.exports.get_proposal_from_anilist_id = async function (
+	server,
+	anilist_id
+) {
+	return (
+		await Server.aggregate([
+			{ $match: { server_id: server.server_id } },
+			{ $unwind: '$anime_queue' },
+			{ $replaceRoot: { newRoot: '$anime_queue' } },
+			{
+				$match: { anilist_id },
+			},
+		]).exec()
+	)[0];
+};
+
+module.exports.get_most_recent_watched_proposal = async function (server) {
+	return (
+		await Server.aggregate([
+			{ $match: { server_id: server.server_id } },
+			{ $unwind: '$anime_queue' },
+			{ $replaceRoot: { newRoot: '$anime_queue' } },
+			{ $sort: { date_watched: -1 } },
+			{ $limit: 1 },
+		]).exec()
+	)[0];
+};
+
+module.exports.remove_proposal = async function (server, proposal_to_remove) {
+	await Server.updateOne(
+		{ server_id: server.server_id },
+		{ $pull: { anime_queue: { anilist_id: proposal_to_remove.anilist_id } } }
+	).exec();
+};
+
+module.exports.strike_proposal = async function (server, proposal_to_remove) {
+	module.exports.remove_proposal(server, proposal_to_remove);
+	await Server.update(
+		{ server_id: server.server_id },
+		{ $push: { striked_proposals: proposal_to_remove } }
+	).exec();
+};
+
+module.exports.add_proposal = async function (server, proposal) {
+	console.log(proposal);
+	await Server.update(
+		{ server_id: server.server_id },
+		{ $push: { anime_queue: proposal } }
+	).exec();
+};
+
+module.exports.save_proposal = async function (server, proposal) {
+	await Server.update(
+		{
+			server_id: server.server_id,
+			'anime_queue.anilist_id': proposal.anilist_id,
+		},
+		{
+			$set: {
+				'anime_queue.$': proposal,
+			},
+		}
+	).exec();
+};
+
+module.exports.get_server_without_anime_queue = async function (server_id) {
+	return (await Server.find({ server_id }, 'server_id config').exec())[0];
 };
