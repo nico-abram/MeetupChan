@@ -30,6 +30,10 @@ There is a karma system in place to add luck to proposals over time (So older pr
 
 `|mipropuesta`
 
+- Get proposal list (In a Private Message)
+
+`|propuestas`
+
 - Roll from unwatched proposals (Mod only)
 
 `|roll`

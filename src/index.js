@@ -156,7 +156,13 @@ async function validate_conflicting_anime_entry(msg, server, anilist_id) {
 		const member_who_already_proposed = await msg.guild.members.fetch(
 			conflicting_anime_entry.user_id
 		);
-		//TODO: What do if member left server?
+		if (member_who_already_proposed == null) {
+			//TODO: What do if member left server?
+			msg.channel.send(
+				`${conflicting_anime_entry.title} ya fue propuesto por alguien que dejo el server (TODO)`
+			);
+			return true;
+		}
 		msg.channel.send(
 			`${
 				conflicting_anime_entry.title
@@ -400,6 +406,27 @@ const commands = {
 			);
 		}
 	}),
+	propuestas: async function (server, msg, args) {
+		const proposals = await get_server_unwatched_proposals(server);
+		if (proposals.length == 0) {
+			msg.author.send('No hay propuestas');
+		} else {
+			//TODO: Embed?
+			msg.author.send(
+				'Propuestas:\n' +
+					(
+						await Promise.all(
+							proposals.map(
+								async (p) =>
+									`${p.title} propuesto por ${member_display_name(
+										await msg.guild.members.fetch(p.user_id)
+									)}`
+							)
+						)
+					).join('\n')
+			);
+		}
+	},
 	roll: modcommand_wrapper(async function (server, msg, args) {
 		const proposals = await get_server_unwatched_proposals(server);
 		if (proposals.length == 0) {
