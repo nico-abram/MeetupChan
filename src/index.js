@@ -1,3 +1,13 @@
+// This is a dummy server so we can periodically ping the repl.it host using uptimerobot
+// To keep it from going to sleep
+const server = require('express')();
+server.all('/', (req, res) => {
+	res.send('Your bot is alive!');
+});
+server.listen(3000, () => {
+	console.log('Server is Ready!');
+});
+
 require('dotenv').config();
 
 const char_to_emoji = require('./emoji_characters');
@@ -233,7 +243,7 @@ const commands = {
 		const deadline = Date.now() + duration;
 
 		const msg_text_builder = () => {
-			let votes = Array(9).fill(0);
+			let votes = Array(10).fill(0);
 			for (const vote of last_watched_proposal.votes) {
 				votes[vote.score - 1]++;
 			}
@@ -292,7 +302,9 @@ const commands = {
 		collector.on('end', (collected) => {
 			save_proposal(server, last_watched_proposal);
 		});
-		[1, 2, 3, 4, 5, 6, 7, 8, 9].map((x) => vote_msg.react(char_to_emoji[x]));
+		[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((x) =>
+			vote_msg.react(char_to_emoji[x])
+		);
 	}),
 	listvoicechannels: modcommand_wrapper(async function (server, msg, args) {
 		let channels = server.config.voice_channel_ids.map(
