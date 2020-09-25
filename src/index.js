@@ -627,6 +627,8 @@ async function run() {
 		});
 
 		client.on('message', async (msg) => {
+			if (msg.guild == null) return; // Ignorar DMs
+
 			const server = await get_server_without_anime_queue(msg.guild.id);
 			const prefix = server.config.prefix;
 			if (!msg.content.startsWith(prefix) || msg.author.bot) return;
