@@ -222,7 +222,7 @@ const commands = {
 			`'${voice_channel.name}' ya no es un canal de voz para la meetup`
 		);
 	}),
-	vote: modcommand_wrapper(async function (server, msg, args) {
+	votacion: modcommand_wrapper(async function (server, msg, args) {
 		const last_watched_proposal = await get_most_recent_watched_proposal(
 			server
 		);
@@ -245,6 +245,7 @@ const commands = {
 		const msg_text_builder = () => {
 			let votes = Array(10).fill(0);
 			for (const vote of last_watched_proposal.votes) {
+				console.log(vote.score);
 				votes[vote.score - 1]++;
 			}
 			return votes
@@ -257,7 +258,7 @@ const commands = {
 		const embed_urls = await get_anilist_url_and_thumbnail_url_by_anilist_id(
 			last_watched_proposal.anilist_id
 		);
-		let embed = {
+		let embed = () => ({
 			embed: {
 				title: last_watched_proposal.title,
 				url: embed_urls.anilist_url,
@@ -267,10 +268,12 @@ const commands = {
 					url: embed_urls.thumbnail_url,
 				},
 			},
-		};
+		});
 
 		const channel = msg.channel;
-		const vote_msg = await channel.send(embed);
+		// See https://discordjs.guide/popular-topics/embeds.html#resending-a-received-embed
+		// We deliberately send a copy
+		const vote_msg = await channel.send(embed());
 
 		const filter = (reaction, user) => {
 			if (user.id == client.user.id) return false;
@@ -296,8 +299,9 @@ const commands = {
 				});
 			}
 
-			embed.description = msg_text_builder();
-			vote_msg.edit(embed);
+			// See https://discordjs.guide/popular-topics/embeds.html#resending-a-received-embed
+			// We deliberately send a copy
+			vote_msg.edit(embed());
 		});
 		collector.on('end', (collected) => {
 			save_proposal(server, last_watched_proposal);
@@ -337,7 +341,7 @@ const commands = {
 		);
 		server.save();
 	}),
-	addmodrole: admincommand_wrapper(async function (server, msg, args) {
+	agregarrolmod: admincommand_wrapper(async function (server, msg, args) {
 		const role_name = msg.content.substr(msg.content.indexOf(' ') + 1);
 		if (role_name == null || role_name.length == 0) {
 			msg.channel.send(`Falta el nombre del rol`);
@@ -356,7 +360,7 @@ const commands = {
 		server.save();
 		msg.channel.send(`Configurado '${role.name}' como rol de mod`);
 	}),
-	removemodrole: admincommand_wrapper(async function (server, msg, args) {
+	quitarrolmod: admincommand_wrapper(async function (server, msg, args) {
 		const role_name = msg.content.substr(msg.content.indexOf(' ') + 1);
 		if (role_name == null || role_name.length == 0) {
 			msg.channel.send(`Falta el nombre del rol`);
@@ -375,16 +379,16 @@ const commands = {
 		server.save();
 		msg.channel.send(`'${role.name}' ya no es un rol de mod`);
 	}),
-	listmodroles: admincommand_wrapper(async function (server, msg, args) {
+	rolesmod: admincommand_wrapper(async function (server, msg, args) {
 		let roles = await Promise.all(
 			server.config.mod_role_ids.map((role_id) =>
 				msg.guild.roles.fetch(role_id).then((role) => role.name)
 			)
 		);
-		let response_msg = 'Roles mod: \n' + roles.join('\n');
+		let response_msg = 'Roles de mod: \n' + roles.join('\n');
 		msg.channel.send(response_msg);
 	}),
-	setprefix: modcommand_wrapper(async function (server, msg, args) {
+	prefijo: modcommand_wrapper(async function (server, msg, args) {
 		const new_prefix = args[0];
 		if (new_prefix != null && new_prefix.length == 1) {
 			server.config.prefix = new_prefix;
@@ -431,7 +435,7 @@ const commands = {
 		);
 
 		if (!user_is_present) {
-			msg.channel.channel.send(
+			msg.channel.send(
 				`Rolleado '${
 					rolled_proposal.title
 				}' propuesto por ${member_display_name(
@@ -446,7 +450,7 @@ const commands = {
 			return;
 		}
 
-		msg.channel.channel.send(
+		msg.channel.send(
 			`Rolleado '${rolled_proposal.title}' propuesto por ${member_display_name(
 				rolled_member
 			)}`
@@ -455,7 +459,7 @@ const commands = {
 		rolled_proposal.date_watched = Date.now();
 		save_proposal(server, rolled_proposal);
 	}),
-	myproposal: async function (server, msg, args) {
+	mipropuesta: async function (server, msg, args) {
 		const existing_proposal = await get_user_proposal(server, msg.author.id);
 		if (existing_proposal != null) {
 			msg.channel.send(
@@ -467,7 +471,7 @@ const commands = {
 			msg.reply(`No tienes una propuesta activa!`);
 		}
 	},
-	propose: async function (server, msg, args) {
+	proponer: async function (server, msg, args) {
 		let title;
 		let force;
 		if (args[0] == '-f') {
@@ -489,7 +493,7 @@ const commands = {
 		if (existing_proposal) {
 			if (!force) {
 				msg.reply(
-					`Ya propusiste ${existing_proposal.title}\nUsa '${server.config.prefix}propose -f ${title}' para sobreescribarla`
+					`Ya propusiste ${existing_proposal.title}\nUsa '${server.config.prefix}proponer -f ${title}' para sobreescribarla`
 				);
 				return;
 			} else {
