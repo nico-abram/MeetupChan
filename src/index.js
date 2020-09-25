@@ -39,7 +39,6 @@ const {
 
 const DEFAULT_PREFIX = '|';
 const DEFAULT_BASE_ROLL_WEIGHT = 1;
-const DEFAULT_REMOVAL_STRIKE_COUNT = 3;
 
 async function ensure_guild_initialization(guild) {
 	const server = await get_server_without_anime_queue(guild.id);
@@ -49,12 +48,10 @@ async function ensure_guild_initialization(guild) {
 			config: {
 				prefix: DEFAULT_PREFIX,
 				base_roll_weight: DEFAULT_BASE_ROLL_WEIGHT,
-				removal_strike_count: DEFAULT_REMOVAL_STRIKE_COUNT,
 				mod_role_ids: [],
 				voice_channel_ids: [],
 			},
 			anime_queue: [],
-			striked_proposals: [],
 		});
 	} else {
 		if (server.config.base_roll_weight == null)
@@ -63,9 +60,6 @@ async function ensure_guild_initialization(guild) {
 			server.config.voice_channel_ids = [];
 		if (server.config.mod_role_ids == null) server.config.mod_role_ids = [];
 		if (server.config.prefix == null) server.config.prefix = DEFAULT_PREFIX;
-		if (server.config.removal_strike_count == null)
-			server.config.removal_strike_count = DEFAULT_REMOVAL_STRIKE_COUNT;
-		if (server.striked_proposals == null) server.striked_proposals = [];
 		server.save();
 	}
 }
@@ -82,11 +76,11 @@ function get_voice_channel_from_name(msg, voice_channel_name) {
 			compare_no_case(channel.name, voice_channel_name)
 	);
 	if (matched_voice_channels.length == 0) {
-		msg.channel.send(`Could not find voice channel '${voice_channel_name}'`);
+		msg.channel.send(`No se encontro el canal de voz '${voice_channel_name}'`);
 		return null;
 	} else if (matched_voice_channels.length > 1) {
 		msg.channel.send(
-			`Found multiple voice channels for search '${voice_channel_name}'`
+			`Se encontraron multiples canales de voz para la busqueda '${voice_channel_name}'`
 		);
 		return null;
 	}
@@ -99,10 +93,12 @@ async function get_role_from_name(msg, role_name) {
 		compare_no_case(role.name, role_name)
 	);
 	if (matched_roles.length == 0) {
-		msg.channel.send(`Could not find role '${role_name}'`);
+		msg.channel.send(`No se encontro el rol '${role_name}'`);
 		return null;
 	} else if (matched_roles.length > 1) {
-		msg.channel.send(`Found multiple roles for search '${role_name}'`);
+		msg.channel.send(
+			`Se encontraron multiples roles para la busqueda '${role_name}'`
+		);
 		return null;
 	}
 	return matched_roles[0];
@@ -126,7 +122,7 @@ function admincommand_wrapper(fn) {
 		if (await is_admin(msg.member)) {
 			fn(server, msg, args);
 		} else {
-			msg.reply("You're not an admin!");
+			msg.reply('No sos un admin!');
 		}
 	};
 }
@@ -136,7 +132,7 @@ function modcommand_wrapper(fn) {
 		if (await is_mod(msg.member, server)) {
 			fn(server, msg, args);
 		} else {
-			msg.reply("You're not a mod!");
+			msg.reply('No sos un mod!');
 		}
 	};
 }
@@ -154,7 +150,7 @@ async function validate_conflicting_anime_entry(msg, server, anilist_id) {
 		msg.channel.send(
 			`${
 				conflicting_anime_entry.title
-			} has already been proposed by ${member_display_name(
+			} ya fue propuesto por ${member_display_name(
 				member_who_already_proposed
 			)}`
 		);
@@ -168,7 +164,7 @@ const commands = {
 	addvoicechannel: modcommand_wrapper(async function (server, msg, args) {
 		const voice_channel_name = msg.content.substr(msg.content.indexOf(' ') + 1);
 		if (voice_channel_name == null || voice_channel_name.length == 0) {
-			msg.channel.send(`Missing voice channel name`);
+			msg.channel.send(`Falta el nombre del canal de voz`);
 			return;
 		}
 
@@ -178,19 +174,21 @@ const commands = {
 		const server_voice_channel_ids = server.config.voice_channel_ids;
 		if (server_voice_channel_ids.includes(voice_channel.id)) {
 			msg.channel.send(
-				`'${voice_channel_name}' is already a meetup voice channel!`
+				`'${voice_channel_name}' ya esta configurado como un canal de voz para la meetup!`
 			);
 			return;
 		}
 
 		server_voice_channel_ids.push(voice_channel.id);
 		server.save();
-		msg.channel.send(`Added '${voice_channel.name}' as a meetup voice channel`);
+		msg.channel.send(
+			`Se agrego '${voice_channel.name}' como canal de voz para la meetup`
+		);
 	}),
 	removevoicechannel: modcommand_wrapper(async function (server, msg, args) {
 		const voice_channel_name = msg.content.substr(msg.content.indexOf(' ') + 1);
 		if (voice_channel_name == null || voice_channel_name.length == 0) {
-			msg.channel.send(`Missing voice channel name`);
+			msg.channel.send(`Falta el nombre del canal de voz`);
 			return;
 		}
 
@@ -200,7 +198,7 @@ const commands = {
 		const server_voice_channel_ids = server.config.voice_channel_ids;
 		if (!server_voice_channel_ids.includes(voice_channel.id)) {
 			msg.channel.send(
-				`'${voice_channel_name}' is not a meetup voice channel!`
+				`'${voice_channel_name}' no esta configurdado como canal de voz de la meetup!`
 			);
 			return;
 		}
@@ -211,7 +209,7 @@ const commands = {
 		);
 		server.save();
 		msg.channel.send(
-			`'${voice_channel.name}' is no longer a meetup voice channel`
+			`'${voice_channel.name}' ya no es un canal de voz para la meetup`
 		);
 	}),
 	vote: modcommand_wrapper(async function (server, msg, args) {
@@ -220,13 +218,13 @@ const commands = {
 		);
 
 		if (last_watched_proposal == null) {
-			msg.channel.send(`There are no watched proposals!`);
+			msg.channel.send(`No hay ninguna propuesta vista!`);
 			return;
 		}
 
 		if (last_watched_proposal.votes.length != 0) {
 			msg.channel.send(
-				`The last watched proposal '${last_watched_proposal.title}' already has votes!`
+				`La ultima propuesta vista '${last_watched_proposal.title}' ya tiene votos!`
 			);
 			return;
 		}
@@ -242,7 +240,7 @@ const commands = {
 			return votes
 				.map(
 					(vote, idx) =>
-						`${char_to_emoji[idx + 1]} ${idx + 1}: **${vote} votes**`
+						`${char_to_emoji[idx + 1]} ${idx + 1}: **${vote} votos**`
 				)
 				.join('\n');
 		};
@@ -300,40 +298,15 @@ const commands = {
 		let channels = server.config.voice_channel_ids.map(
 			(voice_channel_id) => msg.guild.channels.resolve(voice_channel_id).name
 		);
-		let response_msg = 'Meetup Voice Channels: \n' + channels.join('\n');
+		let response_msg =
+			'Canales de voz configurados para la meetup: \n' + channels.join('\n');
 		msg.channel.send(response_msg);
-	}),
-	removalstrikecount: modcommand_wrapper(async function (server, msg, args) {
-		const new_removal_strike_count_str = args[0];
-		if (
-			new_removal_strike_count_str == null ||
-			new_removal_strike_count_str.length == 0
-		) {
-			msg.channel.send(
-				`Removal strike count is set to ${server.config.removal_strike_count}`
-			);
-			return;
-		}
-
-		const new_removal_strike_count = parseInt(new_removal_strike_count_str, 10);
-		if (isNaN(new_removal_strike_count)) {
-			msg.channel.send(
-				`${new_removal_strike_count_str} is not a valid number! Removal strike count remains unchanged (${server.config.removal_strike_count})`
-			);
-			return;
-		}
-
-		server.config.removal_strike_count = new_removal_strike_count;
-		msg.rechannel.sendply(
-			`Server removal strike count set to ${new_removal_strike_count}`
-		);
-		server.save();
 	}),
 	rollbaseweight: modcommand_wrapper(async function (server, msg, args) {
 		const new_base_weight_str = args[0];
 		if (new_base_weight_str == null || new_base_weight_str.length == 0) {
 			msg.channel.send(
-				`Base roll weight is set to ${server.config.base_roll_weight}`
+				`Peso base de propuesta configurado en ${server.config.base_roll_weight}`
 			);
 			return;
 		}
@@ -341,19 +314,21 @@ const commands = {
 		const new_base_roll_weight = parseInt(new_base_weight_str, 10);
 		if (isNaN(new_base_roll_weight)) {
 			msg.channel.send(
-				`${new_base_weight_str} is not a valid number! Base roll weight remains unchanged (${server.config.base_roll_weight})`
+				`${new_base_weight_str} no es un numero valido! No se ha cambiado el peso base de propuesta (${server.config.base_roll_weight})`
 			);
 			return;
 		}
 
 		server.config.base_roll_weight = new_base_roll_weight;
-		msg.channel.send(`Server base roll weight set to ${new_base_roll_weight}`);
+		msg.channel.send(
+			`Peso base de propuesta del server cambiado por ${new_base_roll_weight}`
+		);
 		server.save();
 	}),
 	addmodrole: admincommand_wrapper(async function (server, msg, args) {
 		const role_name = msg.content.substr(msg.content.indexOf(' ') + 1);
 		if (role_name == null || role_name.length == 0) {
-			msg.channel.send(`Missing role name`);
+			msg.channel.send(`Falta el nombre del rol`);
 			return;
 		}
 
@@ -362,17 +337,17 @@ const commands = {
 
 		const server_mod_role_ids = server.config.mod_role_ids;
 		if (server_mod_role_ids.includes(role.id)) {
-			msg.channel.send(`'${role_name}' is already a mod role!`);
+			msg.channel.send(`'${role_name}' ya es un rol de mod!`);
 			return;
 		}
 		server_mod_role_ids.push(role.id);
 		server.save();
-		msg.channel.send(`Added '${role.name}' as a mod role`);
+		msg.channel.send(`Configurado '${role.name}' como rol de mod`);
 	}),
 	removemodrole: admincommand_wrapper(async function (server, msg, args) {
 		const role_name = msg.content.substr(msg.content.indexOf(' ') + 1);
 		if (role_name == null || role_name.length == 0) {
-			msg.channel.send(`Missing role name`);
+			msg.channel.send(`Falta el nombre del rol`);
 			return;
 		}
 
@@ -381,12 +356,12 @@ const commands = {
 
 		const server_mod_role_ids = server.config.mod_role_ids;
 		if (!server_mod_role_ids.includes(role.id)) {
-			msg.channel.send(`'${role_name}' is not a mod role!`);
+			msg.channel.send(`'${role_name}' no es un rol de mod!`);
 			return;
 		}
 		server_mod_role_ids.splice(server_mod_role_ids.indexOf(role.id), 1);
 		server.save();
-		msg.channel.send(`'${role.name}' is no longer a mod role`);
+		msg.channel.send(`'${role.name}' ya no es un rol de mod`);
 	}),
 	listmodroles: admincommand_wrapper(async function (server, msg, args) {
 		let roles = await Promise.all(
@@ -394,32 +369,34 @@ const commands = {
 				msg.guild.roles.fetch(role_id).then((role) => role.name)
 			)
 		);
-		let response_msg = 'Mod Roles: \n' + roles.join('\n');
+		let response_msg = 'Roles mod: \n' + roles.join('\n');
 		msg.channel.send(response_msg);
 	}),
 	setprefix: modcommand_wrapper(async function (server, msg, args) {
 		const new_prefix = args[0];
 		if (new_prefix != null && new_prefix.length == 1) {
 			server.config.prefix = new_prefix;
-			msg.channel.send(`Prefix set to ${new_prefix}`);
+			msg.channel.send(`Prefijo configurado como ${new_prefix}`);
 			server.save();
 		} else {
 			msg.channel.send(
-				`${new_prefix} is not a valid prefix! It must be a single character`
+				`${new_prefix} no es un prefijo valido! Debe ser un solo caracter`
 			);
 		}
 	}),
 	roll: modcommand_wrapper(async function (server, msg, args) {
 		const proposals = await get_server_unwatched_proposals(server);
 		if (proposals.length == 0) {
-			msg.channel.send('There are no proposals to roll from!');
+			msg.channel.send('No hay propuestas entre las que rollear!');
 			return;
 		}
 
-		let weights = proposals.map(
-			(proposal) =>
+		let weights = proposals.map((proposal) =>
+			Math.min(
 				server.config.base_roll_weight +
-				Math.floor(days_since_date(proposal.date_proposed) / 7)
+					Math.floor(days_since_date(proposal.date_proposed) / 7),
+				4 //TODO: Configurable
+			)
 		);
 
 		const rolled_proposal = weighted_roll(proposals, weights);
@@ -428,9 +405,8 @@ const commands = {
 			rolled_proposal.user_id
 		);
 		if (rolled_member == null) {
-			//TODO: Member left server
 			msg.channel.send(
-				`Rolled '${rolled_proposal.title}' proposed by someone who left the server (TODO: Handle this (Remove the proposal?))`
+				`Se rolleo '${rolled_proposal.title}' que fue propuesto por alguien que dejo el server (TODO: Handle this (Remove the proposal?))`
 			);
 			return;
 		}
@@ -443,64 +419,23 @@ const commands = {
 		);
 
 		if (!user_is_present) {
-			const ONE_HOUR = 60 * 60 * 1000;
-			const most_recent_strike_date = new Date(
-				Math.max.apply(null, rolled_proposal.strike_dates)
+			msg.channel.channel.send(
+				`Rolleado '${
+					rolled_proposal.title
+				}' propuesto por ${member_display_name(
+					rolled_member
+				)} quien no esta presente`
 			);
-			if (Date.now() - most_recent_strike_date < ONE_HOUR * 24) {
-				msg.channel.channel.send(
-					`Rolled '${rolled_proposal.title}' proposed by ${member_display_name(
-						rolled_member
-					)} who is not present. Proposal remains unchanged since it was already rolled ${pretty_date(
-						most_recent_strike_date
-					)}`
-				);
 
-				rolled_member.send(
-					`Your proposal '${rolled_proposal.title}' got rolled, but since you were absent it was not watched.\n` +
-						`This proposal has ${rolled_proposal.strike_dates.length} absences\n` +
-						`(Once it reaches ${server.config.removal_strike_count} it will be removed)` +
-						`(Since this was not the first time it got rolled this meetup the absence count remains unchanged)`
-				);
-			} else {
-				rolled_proposal.strike_dates.push(Date.now());
-				if (
-					rolled_proposal.strike_dates.length >=
-					server.config.removal_strike_count
-				) {
-					msg.channel.send(
-						`Rolled '${
-							rolled_proposal.title
-						}' proposed by ${member_display_name(
-							rolled_member
-						)} who is not present. Proposal was removed for reaching the removal strike count (${
-							server.config.removal_strike_count
-						})`
-					);
-					remove_proposal(server, rolled_proposal);
-
-					rolled_member.send(
-						`Your proposal '${rolled_proposal.title}' got rolled, but since you were absent it was not watched.\n` +
-							`This proposal has ${rolled_proposal.strike_dates.length} absences\n` +
-							`(Once it reaches ${server.config.removal_strike_count} it will be removed)`
-					);
-					return;
-				}
-				msg.channel.send(
-					`Rolled '${rolled_proposal.title}' proposed by ${member_display_name(
-						rolled_member
-					)} who is not present. Proposal was given a strike (It has ${
-						rolled_proposal.strike_dates.length
-					} strikes)`
-				);
-				save_proposal(server, rolled_proposal);
-			}
+			rolled_member.send(
+				`Tu propuesta '${rolled_proposal.title}' fue rolleada, pero como no estabas presente no se vio.\n`
+			);
 			//TODO: Reroll
 			return;
 		}
 
 		msg.channel.channel.send(
-			`Rolled '${rolled_proposal.title}' proposed by ${member_display_name(
+			`Rolleado '${rolled_proposal.title}' propuesto por ${member_display_name(
 				rolled_member
 			)}`
 		);
@@ -512,12 +447,12 @@ const commands = {
 		const existing_proposal = await get_user_proposal(server, msg.author.id);
 		if (existing_proposal != null) {
 			msg.channel.send(
-				`Your active proposal is ${existing_proposal.title} (${pretty_date(
+				`Tu propuesta activa es ${existing_proposal.title} (${pretty_date(
 					existing_proposal.date_proposed
 				)})`
 			);
 		} else {
-			msg.reply(`You do not have an active proposal`);
+			msg.reply(`No tienes una propuesta activa!`);
 		}
 	},
 	propose: async function (server, msg, args) {
@@ -534,7 +469,7 @@ const commands = {
 		}
 
 		if (title == null || title.length == 0) {
-			msg.channel.send(`Missing anime title`);
+			msg.channel.send(`Falta el titulo del anime`);
 			return;
 		}
 
@@ -542,7 +477,7 @@ const commands = {
 		if (existing_proposal) {
 			if (!force) {
 				msg.reply(
-					`You have already proposed ${existing_proposal.title}\nUse '${server.config.prefix}propose -f ${title}' to overwrite it`
+					`Ya propusiste ${existing_proposal.title}\nUsa '${server.config.prefix}propose -f ${title}' para sobreescribarla`
 				);
 				return;
 			} else {
@@ -571,7 +506,7 @@ const commands = {
 
 			add_proposal(server, proposal);
 
-			msg.channel.send(`Your proposal is now set to ${proposal.title}`);
+			msg.channel.send(`Tu propuesta ahora es ${proposal.title}`);
 			return;
 		}
 
@@ -595,14 +530,14 @@ const commands = {
 
 			add_proposal(server, proposal);
 
-			msg.channel.send(`Your proposal is now set to ${proposal.title}`);
+			msg.channel.send(`Tu propuesta ahora es ${proposal.title}`);
 			return;
 		}
 
 		// dummy condition to avoid eslint warn
 		if (msg != null) {
 			msg.channel.send(
-				`Anilist search and reaction choice is not supported yet`
+				`Todavia no se soporta seleccion de una busqueda en anilist por emoji`
 			);
 			return;
 		}
@@ -612,14 +547,16 @@ const commands = {
 		// TODO: Pagination (React with prev/next emojis, allow them in the collector,
 		//       and handle them to query the next/prev page from anilist and edit the message)
 		const list_msg = await msg.channel.send(
-			new Discord.MessageEmbed().setTitle(`Results for '${title}'`).addFields(
-				res_page.media.map((media) => {
-					return {
-						name: media.title.english || media.title.romaji,
-						value: 'x',
-					};
-				})
-			)
+			new Discord.MessageEmbed()
+				.setTitle(`Resultados para '${title}'`)
+				.addFields(
+					res_page.media.map((media) => {
+						return {
+							name: media.title.english || media.title.romaji,
+							value: 'x',
+						};
+					})
+				)
 		);
 
 		const filter = (reaction, user) => {
@@ -643,14 +580,13 @@ const commands = {
 					title: title,
 					anilist_id: null,
 					mal_id: null,
-					strike_dates: [],
 				};
 				add_proposal(server, proposal);
 
-				msg.channel.send(`Your proposal is now set to ${title}`);
+				msg.channel.send(`Tu propuesta ahora es ${title}`);
 			})
 			.catch((collected) => {
-				msg.reply(`Selection timed out!`);
+				msg.reply(`Se agoto el tiempo de espera!`);
 			});
 	},
 };

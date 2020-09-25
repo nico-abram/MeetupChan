@@ -12,7 +12,6 @@ module.exports.AnimeEntryObject = new Schema({
 	title: String,
 	anilist_id: Number,
 	mal_id: Number,
-	strike_dates: [Date],
 });
 
 const Server = mongoose.model(
@@ -25,10 +24,8 @@ const Server = mongoose.model(
 			mod_role_ids: [String],
 			voice_channel_ids: [String],
 			base_roll_weight: Number,
-			removal_strike_count: Number,
 		},
 		anime_queue: [module.exports.AnimeEntryObject],
-		striked_proposals: [module.exports.AnimeEntryObject],
 	})
 );
 module.exports.Server = Server;
@@ -100,14 +97,6 @@ module.exports.remove_proposal = async function (server, proposal_to_remove) {
 	await Server.updateOne(
 		{ server_id: server.server_id },
 		{ $pull: { anime_queue: { anilist_id: proposal_to_remove.anilist_id } } }
-	).exec();
-};
-
-module.exports.strike_proposal = async function (server, proposal_to_remove) {
-	module.exports.remove_proposal(server, proposal_to_remove);
-	await Server.update(
-		{ server_id: server.server_id },
-		{ $push: { striked_proposals: proposal_to_remove } }
 	).exec();
 };
 

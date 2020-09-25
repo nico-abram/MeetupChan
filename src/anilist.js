@@ -133,6 +133,5 @@ module.exports.proposal_from_anilist_media = function (msg, media) {
 		title: media.title.english || media.title.romaji,
 		anilist_id: media.id,
 		mal_id: media.idMal,
-		strike_dates: [],
 	};
 };

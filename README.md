@@ -10,8 +10,6 @@ Not very well tested, probably has a number of unresolved edge cases going aroun
 
 Should be able to propose myanimelist/anilist links and roll from them. Rolling checks presence in an admin-configured list of voice channels of the user who proposed.
 
-There is a strike system in place to remove a proposal upon reaching a certain number of strikes, strikes are given once per meetup if a proposal is rolled and the user is not present (WIP).
-
 There is a karma system in place to add luck to proposals over time (So older proposals have more chances of getting rolled).
 
 ## Commands
@@ -63,12 +61,6 @@ There is a karma system in place to add luck to proposals over time (So older pr
 `|rollbaseweight`
 
 `|rollbaseweight 5`
-
-- Set/Get proposal removal strike count (Mod only) (Defaults to 3)
-
-`|removalstrikecount`
-
-`|removalstrikecount 5`
 
 - Change prefix (Mod only)
 
@@ -138,7 +130,7 @@ Todos:
 
 - Disable proposals during meetups (Should be able to set a week day and duration in hours)
 - TODOs in the code
-- Disallow proposals in a set time period (weekday+time + duration in hours)
+- Help command
 - Automatically reroll (Be careful to not fall into an infinite loop if there are only pending proposals from absent users)
 - Querying your past, watched, proposals
 - Localization. We only really care about spanish at the moment, so this might not be worth doing and instead we just use spanish
