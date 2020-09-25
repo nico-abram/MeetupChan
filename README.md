@@ -18,17 +18,17 @@ There is a karma system in place to add luck to proposals over time (So older pr
 
 - Propose an anime
 
-> Note: To overwrite existing proposals use |propose -f https://anilist.co/anime/110353/DecaDence
+> Note: To overwrite existing proposals use |proponer -f https://anilist.co/anime/110353/DecaDence
 
-`|propose https://anilist.co/anime/110353/DecaDence`
+`|proponer https://anilist.co/anime/110353/DecaDence`
 
-`|propose https://myanimelist.net/anime/634/Koi_Kaze`
+`|proponer https://myanimelist.net/anime/634/Koi_Kaze`
 
-`|propose -f https://myanimelist.net/anime/634/Koi_Kaze`
+`|proponer -f https://myanimelist.net/anime/634/Koi_Kaze`
 
 - Get your current proposal
 
-`|myproposal`
+`|mipropuesta`
 
 - Roll from unwatched proposals (Mod only)
 
@@ -38,15 +38,15 @@ There is a karma system in place to add luck to proposals over time (So older pr
 
 > Note: The vote works with 1-9 number emoji reactions, and the reaction message is sent in the same channel as the vote command
 
-`|vote`
+`|votacion`
 
 - Role Management (Admin only)
 
-`|addmodrole role name goes here`
+`|agregarrolmod role name goes here`
 
-`|removemodrole role name goes here`
+`|quitarrolmod role name goes here`
 
-`|listmodroles`
+`|rolesmod`
 
 - Voice channel Management (Mod only)
 
@@ -64,7 +64,7 @@ There is a karma system in place to add luck to proposals over time (So older pr
 
 - Change prefix (Mod only)
 
-`|setprefix !`
+`|prefijo !`
 
 ## Configuration
 
