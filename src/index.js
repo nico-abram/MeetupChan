@@ -73,6 +73,25 @@ async function ensure_guild_initialization(guild) {
 		server.save();
 	}
 }
+async function get_proposals_to_roll_from(server, msg) {
+	let channels = await Promise.all(
+		server.config.voice_channel_ids.map((voice_channel_id) =>
+			msg.guild.channels.resolve(voice_channel_id)
+		)
+	);
+
+	const user_proposal_promises = channels
+		.map((vc) =>
+			vc.members.map((member) => get_user_proposal(server, member.user.id))
+		)
+		.flat();
+
+	const user_proposals = (await Promise.all(user_proposal_promises)).filter(
+		(x) => x != null
+	);
+
+	return user_proposals;
+}
 
 function member_display_name(member) {
 	return member.nickname || member.user.username;
@@ -428,7 +447,9 @@ const commands = {
 		}
 	},
 	roll: modcommand_wrapper(async function (server, msg, args) {
-		const proposals = await get_server_unwatched_proposals(server);
+		//const proposals = await get_server_unwatched_proposals(server);
+		const proposals = await get_proposals_to_roll_from(server, msg);
+
 		if (proposals.length == 0) {
 			msg.channel.send('No hay propuestas entre las que rollear!');
 			return;
@@ -438,7 +459,7 @@ const commands = {
 			Math.min(
 				server.config.base_roll_weight +
 					Math.floor(days_since_date(proposal.date_proposed) / 7),
-				4 //TODO: Configurable
+				5 //TODO: Configurable
 			)
 		);
 
