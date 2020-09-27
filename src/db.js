@@ -26,6 +26,7 @@ const Server = mongoose.model(
 			base_roll_weight: Number,
 		},
 		anime_queue: [module.exports.AnimeEntryObject],
+		removed_proposals: [module.exports.AnimeEntryObject],
 	})
 );
 module.exports.Server = Server;
@@ -104,6 +105,17 @@ module.exports.add_proposal = async function (server, proposal) {
 	await Server.update(
 		{ server_id: server.server_id },
 		{ $push: { anime_queue: proposal } }
+	).exec();
+};
+
+module.exports.remove_proposal = async function (server, proposal_to_remove) {
+	await Server.updateOne(
+		{ server_id: server.server_id },
+		{ $pull: { anime_queue: { anilist_id: proposal_to_remove.anilist_id } } }
+	).exec();
+	await Server.update(
+		{ server_id: server.server_id },
+		{ $push: { removed_proposals: proposal_to_remove } }
 	).exec();
 };
 

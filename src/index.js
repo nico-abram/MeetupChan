@@ -30,6 +30,7 @@ const {
 	get_anilist_media_by_mal_id,
 	proposal_from_anilist_media,
 	get_anilist_url_and_thumbnail_url_by_anilist_id,
+	proposal_from_url,
 } = require('./anilist');
 
 const Discord = require('discord.js');
@@ -171,6 +172,7 @@ async function validate_conflicting_anime_entry(msg, server, anilist_id) {
 		server,
 		anilist_id
 	);
+
 	if (conflicting_anime_entry != null) {
 		const member_who_already_proposed = await msg.guild.members.fetch(
 			conflicting_anime_entry.user_id
@@ -335,6 +337,135 @@ const commands = {
 			vote_msg.react(char_to_emoji[x])
 		);
 	}),
+	help: modcommand_wrapper(async function (server, msg, args) {
+		msg.channel.send({
+			embed: {
+				title: 'Comandos de Tarobot',
+				fields: [
+					{
+						name: 'Comandos de usuario',
+						value: [
+							'`help`: Este comando',
+							'`proponer {url mal/anilist}`: proponer un anime',
+							'`proponer -f {url mal/anilist}`: Sobreescribir propuesta actual (Resetea los tickets)',
+							'`mipropuesta`: Te dice tu propuesta actual',
+							'`propuestade {nombre usuario}`: Te dice la propuesta del usuario dado (TODO)',
+							'`propuestas`: Te manda un DM con las propuestas actuales',
+							'`modhelp`: Comandos de mod',
+							'`adminhelp`: Comandos de admin',
+						].concat(),
+					},
+				],
+			},
+		});
+	}),
+	modhelp: modcommand_wrapper(async function (server, msg, args) {
+		msg.channel.send({
+			embed: {
+				title: 'Comandos de Tarobot',
+				fields: [
+					{
+						name: 'Comandos de mod',
+						value: [
+							'`addvoicechannel {nombre canal de voz}`: Configura ese canal de voz como un canal de la meetup',
+							'`removevoicechannel {nombre canal de voz}`: Desconfigura un canal de voz como canal de la meetup',
+							'`votacion`: Inicia la votacion del ultimo anime rolleado',
+							'`removeruserproposal {nombre de usuario}`: Quita la propuesta actual del usuario dado (TODO)',
+							'`removeproposal {link de mal o anilist}`: Quita la propuesta dada',
+							'`listvoicechannels`: Lista los canales de voz configurados',
+							'`rollbaseweight`: Te responde con el peso base de las propuestas sin antiguedad (Cantida de tickets base)',
+							'`rollbaseweight {numero}`: Cambia el peso base de las propuestas',
+							'`prefijo {caracter}`: Cambia el prefijo del bot',
+							'`roll`: Rollea entre las propuestas activas (Si tienen) de todos los usuarios en los canales de voz configurados',
+						].concat(),
+					},
+				],
+			},
+		});
+		msg.author.send();
+	}),
+	adminhelp: modcommand_wrapper(async function (server, msg, args) {
+		msg.channel.send({
+			embed: {
+				title: 'Comandos de Tarobot',
+				fields: [
+					{
+						name: 'Comandos de admin',
+						value: [
+							'`agregarrolmod {nombre de rol}`: Configura un rol como rol de mod del Tarobot',
+							'`quitarrolmod {nombre de rol}`: Desconfigura un rol como rol de mod del Tarobot',
+							'`rolesmod`: Lista los roles de mod configurados',
+						].concat(),
+					},
+				],
+			},
+		});
+	}),
+	removeuserproposal: modcommand_wrapper(async function (server, msg, args) {
+		const user_name = args[0];
+		if (user_name == null || user_name.length == 0) {
+			msg.reply(`Falta el primer parametro: nombre de usuario`);
+			return;
+		}
+
+		msg.reply(`TODO: Encontrar el usuario por nombre`);
+		// dummy condition to avoid eslint warn
+		if (msg != null) {
+			return;
+		}
+
+		const user_id = null; //TODO: Get user by name?
+		if (user_id == null) {
+			msg.reply(`No se encontro al usuario: ${user_name}`);
+			return;
+		}
+
+		const proposal = await get_user_proposal(server, user_id);
+		if (proposal == null) {
+			msg.reply(`El usuario no tiene una propuesta activa`);
+			return;
+		}
+
+		await remove_proposal(server, proposal);
+
+		msg.reply(
+			`Se borro la propuesta ${
+				proposal.title
+			} del usuario ${member_display_name(
+				await msg.guild.members.fetch(proposal.user_id)
+			)} propuesta el ${pretty_date(proposal.date_proposed)}`
+		);
+	}),
+	removeproposal: modcommand_wrapper(async function (server, msg, args) {
+		const url = args[0];
+		if (url == null || url.length == 0) {
+			msg.channel.send(
+				`Falta el primer parametro: url de anilist o myanimelist`
+			);
+			return;
+		}
+		const proposal = await proposal_from_url(url, msg);
+		if (proposal == null) {
+			msg.reply(`URL de anilist o myanimelist invalida: ${url}`);
+			return;
+		}
+		if (proposal.watched) {
+			msg.reply(
+				`El anime ${proposal.title} ya se vio. Si deseas borrarlo usa ${server.config.prefix}removewatched ${url}`
+			);
+			return;
+		}
+
+		await remove_proposal(server, proposal);
+
+		msg.reply(
+			`Se borro la propuesta ${
+				proposal.title
+			} del usuario ${member_display_name(
+				await msg.guild.members.fetch(proposal.user_id)
+			)} propuesta el ${proposal.date_proposed}`
+		);
+	}),
 	listvoicechannels: modcommand_wrapper(async function (server, msg, args) {
 		let channels = server.config.voice_channel_ids.map(
 			(voice_channel_id) => msg.guild.channels.resolve(voice_channel_id).name
@@ -439,7 +570,7 @@ const commands = {
 								async (p) =>
 									`${p.title} propuesto por ${member_display_name(
 										await msg.guild.members.fetch(p.user_id)
-									)}`
+									)} el ${pretty_date(p.date_proposed)}`
 							)
 						)
 					).join('\n')
@@ -507,6 +638,37 @@ const commands = {
 		rolled_proposal.date_watched = Date.now();
 		save_proposal(server, rolled_proposal);
 	}),
+	propuestade: async function (server, msg, args) {
+		const user_name = args[0];
+		if (user_name == null || user_name.length == 0) {
+			msg.reply(`Falta el primer parametro: nombre de usuario`);
+			return;
+		}
+
+		msg.reply(`TODO: Encontrar el usuario por nombre`);
+		// dummy condition to avoid eslint warn
+		if (msg != null) {
+			return;
+		}
+
+		const user_id = null; //TODO: Get user by name?
+		if (user_id == null) {
+			msg.reply(`No se encontro al usuario: ${user_name}`);
+			return;
+		}
+
+		const proposal = await get_user_proposal(server, user_id);
+		if (proposal == null) {
+			msg.reply(`El usuario no tiene una propuesta activa`);
+			return;
+		}
+
+		msg.channel.send(
+			`La propuesta activa de ${user_name} es ${
+				proposal.title
+			} (Propuesta el ${pretty_date(proposal.date_proposed)})`
+		);
+	},
 	mipropuesta: async function (server, msg, args) {
 		const existing_proposal = await get_user_proposal(server, msg.author.id);
 		if (existing_proposal != null) {
@@ -549,49 +711,13 @@ const commands = {
 			}
 		}
 
-		const anilist_prefix = 'anilist.co/anime/';
-		const anilist_suffix = '/';
-		if (title.includes(anilist_prefix)) {
-			const prefix_end_idx =
-				title.indexOf(anilist_prefix) + anilist_prefix.length;
-			let anilist_id = title.substring(
-				prefix_end_idx,
-				title.indexOf(anilist_suffix, prefix_end_idx)
-			);
-
-			const anilist_media = await get_anilist_media_by_id(anilist_id);
-			const proposal = proposal_from_anilist_media(msg, anilist_media);
-
+		const proposal = await proposal_from_url(title, msg);
+		if (proposal != null) {
 			if (
 				await validate_conflicting_anime_entry(msg, server, proposal.anilist_id)
 			) {
 				return;
 			}
-
-			add_proposal(server, proposal);
-
-			msg.channel.send(`Tu propuesta ahora es ${proposal.title}`);
-			return;
-		}
-
-		const mal_prefix = 'myanimelist.net/anime/';
-		const mal_suffix = '/';
-		if (title.includes(mal_prefix)) {
-			const prefix_end_idx = title.indexOf(mal_prefix) + mal_prefix.length;
-			let mal_id = title.substring(
-				prefix_end_idx,
-				title.indexOf(mal_suffix, prefix_end_idx)
-			);
-
-			const mal_media = await get_anilist_media_by_mal_id(mal_id);
-			const proposal = proposal_from_anilist_media(msg, mal_media);
-
-			if (
-				await validate_conflicting_anime_entry(msg, server, proposal.anilist_id)
-			) {
-				return;
-			}
-
 			add_proposal(server, proposal);
 
 			msg.channel.send(`Tu propuesta ahora es ${proposal.title}`);
